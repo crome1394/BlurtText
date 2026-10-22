@@ -84,7 +84,7 @@
 
         <activity-alias
             android:name=".LauncherOriginal"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
             android:label="@string/messages_app_name"
@@ -112,7 +112,7 @@
 
         <activity-alias
             android:name=".LauncherCyan"
-            android:enabled="false"
+            android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_cyan"
             android:label="@string/messages_app_name"

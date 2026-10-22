@@ -4,6 +4,8 @@ Android SMS and MMS app. It is the phone's default texting app, and a computer o
 
 Open it if you want one messenger for texts, pictures, GIFs, and a browser inbox, without a carrier app in the middle.
 
+A test build is on the [latest GitHub release](https://github.com/crome1394/lMessages/releases/latest). That file is a debug APK for sideloading.
+
 - SMS, multipart SMS, and MMS (pictures, GIFs, video, voice) through Android's telephony provider
 - Swipe a conversation to mark it unread or delete it, with undo
 - Several color palettes, light and dark, and a text-size control

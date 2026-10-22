@@ -4,6 +4,7 @@ import app.lantext.sms.echoStoredTimestamp
 import app.lantext.sms.orderEchoes
 import app.lantext.sms.parseStoredMessageId
 import app.messages.data.ChatMessage
+import app.messages.data.Persisted
 import app.messages.data.MessageLinks
 import app.messages.data.RibbonItem
 import app.messages.data.VerificationCodes
@@ -194,6 +195,27 @@ class MessageLogicTest {
         assertEquals(2, ribbonTopCount(2))
         assertEquals(1, ribbonTopCount(0))
         assertEquals(5, ribbonTopCount(9))
+    }
+
+    @Test
+    fun newInstallMatchesThePhoneLayout() {
+        val fresh = Persisted()
+        assertEquals("ocean", fresh.palette)
+        assertEquals("cyan", fresh.launcherIcon)
+        assertEquals("system", fresh.theme)
+        assertFalse(fresh.dynamicColor)
+        assertTrue(fresh.searchAtBottom)
+        assertTrue(fresh.stripedInbox)
+        assertEquals("delete", fresh.swipeStart)
+        assertEquals("unread", fresh.swipeEnd)
+        assertFalse(fresh.showSimIndicator)
+        assertFalse(fresh.detailDirection)
+        assertFalse(fresh.detailSim)
+        assertEquals(68, fresh.footerHeight)
+        assertEquals(listOf("read", "unread", "delete", "block", "archive", "pin"), fresh.ribbon.map { it.id })
+        assertFalse(fresh.ribbon.first { it.id == "archive" }.shown)
+        assertEquals(listOf("filter", "search", "settings", "computer"), fresh.footer.map { it.id })
+        assertTrue(fresh.footer.all { it.shown })
     }
 
     @Test

@@ -1080,13 +1080,6 @@ private fun Composer(
                         }
                     }
                 }
-            } else if (sims.size == 1) {
-                Text(
-                    "Sending with ${simDetail(sims.first().id, sims)}",
-                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
             attachment?.let { path ->
                 val kind = mimeForPath(path)

@@ -16,9 +16,12 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
@@ -33,6 +36,7 @@ import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -225,7 +229,7 @@ private fun tabMatches(index: Int, query: String): Boolean {
         9 -> "ribbon pin unpin mark as read mark as unread delete block archive show hide drag move to the top selected arrangement"
         10 -> "footer height search settings computer filter icon show hide"
         11 -> "lanmessaging wifi port paired computers web access networks listen"
-        12 -> "version lanmessaging computer access"
+        12 -> "version lanmessaging computer access github apache license apk download"
         else -> ""
     }
     return blob.contains(q, ignoreCase = true)
@@ -766,9 +770,40 @@ private fun SwipePage(vm: MessagesViewModel, settings: app.messages.data.Persist
 
 @Composable
 private fun AboutPage(query: String) {
-    if (!visible(query, "About", "lMessages", "LanMessaging", "LanText", BuildConfig.VERSION_NAME)) {
+    val context = LocalContext.current
+    var showLicense by remember { mutableStateOf(false) }
+    val license = remember {
+        context.resources.openRawResource(app.messages.R.raw.apache_license).bufferedReader().use { it.readText() }
+    }
+    if (!visible(
+            query,
+            "About",
+            "lMessages",
+            "LanMessaging",
+            "LanText",
+            BuildConfig.VERSION_NAME,
+            "GitHub",
+            "Apache",
+            "license",
+            "APK",
+        )
+    ) {
         NoMatches()
         return
+    }
+    if (showLicense) {
+        AlertDialog(
+            onDismissRequest = { showLicense = false },
+            confirmButton = {
+                TextButton(onClick = { showLicense = false }) { Text("Close") }
+            },
+            title = { Text("Apache License 2.0") },
+            text = {
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                    Text(license, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+        )
     }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
@@ -776,6 +811,38 @@ private fun AboutPage(query: String) {
                 headlineContent = { Text("About") },
                 supportingContent = {
                     Text("lMessages ${BuildConfig.VERSION_NAME}. Computer access is LanMessaging, included in this app.")
+                },
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text("GitHub") },
+                supportingContent = { Text("github.com/crome1394/lMessages") },
+                leadingContent = {
+                    Icon(painterResource(app.messages.R.drawable.ic_git), contentDescription = "Git")
+                },
+                modifier = Modifier.clickable {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/crome1394/lMessages")),
+                    )
+                },
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text("License") },
+                supportingContent = { Text("Apache License 2.0") },
+                modifier = Modifier.clickable { showLicense = true },
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text("Test APK") },
+                supportingContent = { Text("Download the latest build from GitHub") },
+                modifier = Modifier.clickable {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/crome1394/lMessages/releases/latest")),
+                    )
                 },
             )
         }

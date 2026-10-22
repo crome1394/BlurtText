@@ -882,7 +882,15 @@ private fun InboxFilterMenu(
             FilterChoice("Read", active == InboxListFilter.Read) { onFilter(InboxListFilter.Read) }
             FilterChoice("Archived", active == InboxListFilter.Archived) { onFilter(InboxListFilter.Archived) }
             FilterChoice("Blocked", active == InboxListFilter.Blocked) { onFilter(InboxListFilter.Blocked) }
-            if (contacts.isNotEmpty()) HorizontalDivider()
+            if (contacts.isNotEmpty()) {
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                Text(
+                    "Contacts",
+                    modifier = Modifier.padding(start = 20.dp, top = 6.dp, end = 20.dp, bottom = 2.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             contacts.forEach { conversation ->
                 FilterChoice(
                     conversation.title.ifBlank { "Contact" },

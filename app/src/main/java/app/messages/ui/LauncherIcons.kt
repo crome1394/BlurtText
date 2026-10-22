@@ -37,7 +37,7 @@ object LauncherIcons {
         val id = canonical(raw)
         val pm = context.packageManager
         val enabled = presets.associate { preset ->
-            preset.id to componentEnabled(pm, ComponentName(context, preset.alias), preset.id == "original")
+            preset.id to componentEnabled(pm, ComponentName(context, preset.alias), preset.id == "cyan")
         }
         if (enabled.all { (presetId, on) -> on == (presetId == id) }) return
         val flag = PackageManager.DONT_KILL_APP

@@ -32,6 +32,10 @@
             android:exported="false" />
 
         <receiver
+            android:name="app.lantext.sms.SmsSentReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name="app.lantext.net.NotificationActionReceiver"
             android:exported="false" />
 
