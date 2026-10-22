@@ -1,0 +1,42 @@
+lMessages
+Copyright 2026 Matthew Crome
+
+Licensed under the Apache License, Version 2.0.
+
+This application includes LanText.
+Copyright 2026 Matthew Crome
+https://github.com/crome/lantext
+Licensed under the Apache License, Version 2.0.
+
+LanText and this application include software developed by:
+
+  The Android Open Source Project
+  https://source.android.com/
+  Licensed under the Apache License, Version 2.0.
+
+  android-smsmms / mmslib (Jacob Klinker and contributors)
+  including the AOSP-derived `com.google.android.mms.pdu_alt` package
+  used to compose MMS PDUs, and `MmsFileProvider`.
+  https://github.com/klinker41/android-smsmms
+  https://github.com/FossifyOrg/messages (mmslib)
+  Licensed under the Apache License, Version 2.0.
+
+  NanoHTTPD
+  https://github.com/NanoHttpd/nanohttpd
+  Licensed under the BSD 3-Clause License.
+
+  Ktor (TLS certificate helpers)
+  https://ktor.io/
+  Licensed under the Apache License, Version 2.0.
+
+  AndroidX / Jetpack Compose
+  https://developer.android.com/jetpack
+  Licensed under the Apache License, Version 2.0.
+
+  libphonenumber
+  https://github.com/google/libphonenumber
+  Licensed under the Apache License, Version 2.0.
+
+  ZXing ("Zebra Crossing")
+  https://github.com/zxing/zxing
+  Licensed under the Apache License, Version 2.0.

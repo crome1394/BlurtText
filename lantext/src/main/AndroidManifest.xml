@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name="app.lantext.MainActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.LanText"
+            android:windowSoftInputMode="adjustResize" />
+
+        <service
+            android:name="app.lantext.net.GatewayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="LAN-only HTTPS gateway for SMS, active solely on user-selected Wi-Fi networks." />
+        </service>
+
+        <receiver
+            android:name="app.lantext.net.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="app.lantext.sms.MmsSentReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="app.lantext.net.NotificationActionReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="app.lantext.widget.ToggleWidget"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="app.lantext.widget.TOGGLE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_toggle_info" />
+        </receiver>
+
+        <provider
+            android:name="com.klinker.android.send_message.MmsFileProvider"
+            android:authorities="${applicationId}.MmsFileProvider"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+    </application>
+</manifest>

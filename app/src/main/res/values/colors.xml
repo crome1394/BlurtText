@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="messages_launcher_background">#106D1F</color>
+    <color name="launcher_bg_light">#F4F4F4</color>
+    <color name="launcher_bg_dark">#1A1A1A</color>
+    <color name="window_background">#F6F7F5</color>
+</resources>
