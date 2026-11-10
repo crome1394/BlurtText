@@ -3,7 +3,7 @@
     <application>
         <receiver
             android:name=".DebugSeedReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="app.messages.DEBUG_INSERT" />
                 <action android:name="app.messages.DEBUG_DELETE" />

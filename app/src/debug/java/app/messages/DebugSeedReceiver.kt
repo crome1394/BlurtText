@@ -30,15 +30,14 @@ class DebugSeedReceiver : BroadcastReceiver() {
                 if (!media.isNullOrBlank() && !mime.isNullOrBlank()) {
                     val outgoing = intent.getStringExtra("box") == "out"
                     val saved = runCatching { insertLocalMedia(context, address, thread, mime, media, outgoing) }
-                    val why = saved.exceptionOrNull()?.message?.take(40).orEmpty()
-                    Log.i(TAG, if (saved.isSuccess) "debug media mime=$mime bytes=${saved.getOrNull()}" else "debug media failed $why")
+                    Log.i(TAG, if (saved.isSuccess) "debug media mime=$mime bytes=${saved.getOrNull()}" else "debug media failed")
                 }
-                Log.i(TAG, "debug insert thread=$thread address=$address")
+                Log.i(TAG, "debug insert thread=$thread")
                 app.messaging.ping()
             }
             ACTION_DELETE -> {
                 val removed = app.messaging.deleteAddress(address)
-                Log.i(TAG, "debug delete address=$address threads=$removed")
+                Log.i(TAG, "debug delete threads=$removed")
             }
         }
     }
