@@ -301,7 +301,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 app.local.update { state ->
                     state.copy(scheduled = state.scheduled.map { if (it.id == id) it.copy(failed = true) else it })
                 }
-                MessageNotifier.simple(context, "Scheduled message failed", t.message ?: "Could not send", MessageNotifier.statusId(item.id))
+                MessageNotifier.simple(context, "Scheduled message failed", t.message ?: "Could not send", MessageNotifier.statusId(id))
             } finally {
                 pending.finish()
             }
