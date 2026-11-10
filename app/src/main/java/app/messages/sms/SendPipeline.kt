@@ -136,11 +136,11 @@ object SendPipeline {
             if (!kind.startsWith("image/") && !kind.startsWith("audio/") && !kind.startsWith("video/")) {
                 throw IllegalStateException("MMS can send a picture, GIF, audio clip, or video.")
             }
-            val outbound = MmsSender.send(context, manager, addresses, body, attachment, kind, subscription)
+            val outbound = MmsSender.send(context, manager, addresses, body, attachment, kind, subscription, deliveryReports)
             stored = outbound.bytes
             storedMime = outbound.mime
         } else {
-            sendTextMms(context, manager, addresses, body)
+            sendTextMms(context, manager, addresses, body, deliveryReports)
         }
         if (!recentMmsExists(context, threadId, body)) {
             try {
@@ -157,6 +157,7 @@ object SendPipeline {
         manager: SmsManager,
         addresses: List<String>,
         body: String,
+        deliveryReports: Boolean,
     ) {
         val wire = addresses.map { mmsWireAddress(context, it) }.filter { it.isNotEmpty() }
         if (wire.isEmpty()) throw IllegalStateException("Add a recipient.")
