@@ -55,7 +55,7 @@ object SendPipeline {
         if (text.isEmpty() && attachment == null) throw IllegalStateException("Message is empty.")
         try {
             if (attachment != null || dest.size > 1) {
-                sendMms(context, dest, text, attachment, mime, subId)
+                sendMms(context, dest, text, attachment, mime, subId, deliveryReports)
             } else {
                 sendSms(context, dest.first(), text, subId, deliveryReports)
             }
@@ -124,6 +124,7 @@ object SendPipeline {
         attachment: ByteArray?,
         mime: String?,
         subId: Int?,
+        deliveryReports: Boolean,
     ): Long {
         val threadId = Telephony.Threads.getOrCreateThreadId(context, HashSet(addresses))
         val manager = manager(context, subId)
@@ -186,7 +187,7 @@ object SendPipeline {
         req.setExpiry(7 * 24 * 60 * 60)
         try {
             req.setPriority(PduHeaders.PRIORITY_NORMAL)
-            req.setDeliveryReport(PduHeaders.VALUE_NO)
+            req.setDeliveryReport(if (deliveryReports) PduHeaders.VALUE_YES else PduHeaders.VALUE_NO)
             req.setReadReport(PduHeaders.VALUE_NO)
         } catch (_: InvalidHeaderValueException) {
         }

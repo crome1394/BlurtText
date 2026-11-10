@@ -83,6 +83,7 @@ class MessagesApp : LanTextApp() {
     }
 
     private suspend fun pushPhoneSettings(persisted: Persisted) {
+        mmsDeliveryReports = persisted.deliveryReports
         val mode = webMode(persisted.theme)
         val palette = resolvedPalette(persisted.palette)
         val ribbon = resolvedRibbon(persisted.ribbon)
