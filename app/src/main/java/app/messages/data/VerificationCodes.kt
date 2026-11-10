@@ -126,14 +126,14 @@ object VerificationCodes {
         if (start > 0 && text[start - 1] == '+') return true
         val end = start + raw.length
         val digits = raw.count { it.isDigit() }
-        // 800-632 inside 1-800-632-4600 is only a slice. A code that is the whole run is kept.
+        // 800-555 inside 1-800-555-0199 is only a slice. A code that is the whole run is kept.
         if (phoneSpanDigits(text, start, end) > digits) return true
         if (digits < 7) return false
         val prefix = text.substring((start - 12).coerceAtLeast(0), start)
         return areaBefore.containsMatchIn(prefix)
     }
 
-    /** Digits joined to this token by spaces, dots, or hyphens, as in 1-800-632-4600. */
+    /** Digits joined to this token by spaces, dots, or hyphens, as in 1-800-555-0199. */
     private fun phoneSpanDigits(text: String, start: Int, end: Int): Int {
         val phone = "0123456789- ().".toSet()
         var a = start

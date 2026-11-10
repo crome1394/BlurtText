@@ -77,7 +77,7 @@ private val bareTapback = Regex(
 )
 
 /**
- * An iPhone tapback arrives as its own text, such as Liked "…didn't pick it up."
+ * An iPhone tapback arrives as its own text, such as Liked "…missed the update."
  * [reactionLayout] hangs that reaction on the earlier message and hides the tapback row.
  */
 fun reactionLayout(messages: List<ChatMessage>): ReactionLayout {

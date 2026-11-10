@@ -269,7 +269,7 @@ class MessageLogicTest {
                 "Provident verification code. Do not share this code with anyone:482913 Reply HELP or call 1-800-555-0199.",
             ),
         )
-        assertNull(VerificationCodes.find("Your verification code call is at 800-632-4600 today"))
+        assertNull(VerificationCodes.find("Your verification code call is at 800-555-0199 today"))
         assertEquals("2026", VerificationCodes.find("Your code is 2026"))
         assertNull(VerificationCodes.find("Order 482913 has shipped"))
         assertNull(VerificationCodes.find("Meet me at 2024 Main Street"))
@@ -467,25 +467,25 @@ class MessageLogicTest {
     fun likeLandsOnTheOriginalMessage() {
         val original = sample(
             1,
-            "I created a new sms app. if you added Jon, to the thread my sms app didn't pick it up.",
+            "Sample note for the thread. The sample app missed the update.",
             1_000,
             false,
         )
-        val like = sample(2, "Liked \u201c\u2026didn't pick it up.\u201d", 2_000, true).copy(senderName = "Jane Felix")
+        val like = sample(2, "Liked \u201c\u2026missed the update.\u201d", 2_000, true).copy(senderName = "Alex Example")
         val laid = reactionLayout(listOf(original, like))
         assertTrue(like.key in laid.hiddenKeys)
         val mark = laid.byKey[original.key]!!.single()
         assertEquals("\uD83D\uDC4D", mark.symbol)
-        assertEquals(listOf("Jane Felix"), mark.names)
-        val removed = sample(3, "Removed a like from \u201c\u2026didn't pick it up.\u201d", 3_000, true)
-            .copy(senderName = "Jane Felix")
+        assertEquals(listOf("Alex Example"), mark.names)
+        val removed = sample(3, "Removed a like from \u201c\u2026missed the update.\u201d", 3_000, true)
+            .copy(senderName = "Alex Example")
         val cleared = reactionLayout(listOf(original, like, removed))
         assertTrue(laidOutEmpty(cleared, original.key))
         assertTrue(like.key in cleared.hiddenKeys)
         assertTrue(removed.key in cleared.hiddenKeys)
-        val topic = sample(4, "They do, but even the mighty can fall. I just hope the political change is a good one.", 4_000, false)
-        val reacted = sample(5, "Reacted \uD83D\uDE22 to \u201cThey do,  but even the mighty can fall.  I just hope the political change is a good one...\u201d", 5_000, true)
-            .copy(senderName = "Jane Felix")
+        val topic = sample(4, "Sample line stays on the left while another sample line stays on the right today.", 4_000, false)
+        val reacted = sample(5, "Reacted \uD83D\uDE22 to \u201cSample line stays on the left while another sample line stays on the right...\u201d", 5_000, true)
+            .copy(senderName = "Alex Example")
         val emoji = reactionLayout(listOf(topic, reacted))
         assertTrue(reacted.key in emoji.hiddenKeys)
         assertEquals("\uD83D\uDE22", emoji.byKey[topic.key]!!.single().symbol)
@@ -494,10 +494,10 @@ class MessageLogicTest {
     @Test
     fun sentTapbackLandsOnThePillAsYou() {
         val love = tapbackSymbols.first { it.label == "Love" }
-        val original = sample(1, "Will do =)", 1_000, true).copy(senderName = "Jane Felix")
+        val original = sample(1, "Will do =)", 1_000, true).copy(senderName = "Alex Example")
         val body = tapbackBody(original, love, remove = false)
         assertEquals("Loved \u201cWill do =)\u201d", body)
-        val sent = sample(2, body!!, 2_000, false).copy(senderName = "Jane Felix", address = "+16043698359")
+        val sent = sample(2, body!!, 2_000, false).copy(senderName = "Alex Example", address = "+15555550100")
         val laid = reactionLayout(listOf(original, sent))
         assertTrue(sent.key in laid.hiddenKeys)
         val mark = laid.byKey[original.key]!!.single()
@@ -530,22 +530,22 @@ class MessageLogicTest {
 
     @Test
     fun echoedLoveCountsOnceAsYou() {
-        val original = sample(1, "On my way", 1_000, true).copy(senderName = "Jane Felix")
+        val original = sample(1, "On my way", 1_000, true).copy(senderName = "Alex Example")
         val body = "Loved \u201cOn my way\u201d"
         val sent = sample(2, body, 2_000, false)
-        val echo = sample(3, body, 2_001, true).copy(senderName = "Jane Felix")
+        val echo = sample(3, body, 2_001, true).copy(senderName = "Alex Example")
         val laid = reactionLayout(listOf(original, sent, echo))
         assertTrue(sent.key in laid.hiddenKeys)
         assertTrue(echo.key in laid.hiddenKeys)
         val mark = laid.byKey[original.key]!!.single()
         assertEquals("\u2764\uFE0F", mark.symbol)
         assertEquals(listOf("You"), mark.names)
-        val early = sample(4, body, 2_000 - 1_000, true).copy(senderName = "Jane Felix")
+        val early = sample(4, body, 2_000 - 1_000, true).copy(senderName = "Alex Example")
         val earlyLaid = reactionLayout(listOf(original, early, sent))
         assertEquals(listOf("You"), earlyLaid.byKey[original.key]!!.single().names)
-        val theirs = sample(5, body, 2_000 + SELF_ECHO_WINDOW_MS + 1, true).copy(senderName = "Jane Felix")
+        val theirs = sample(5, body, 2_000 + SELF_ECHO_WINDOW_MS + 1, true).copy(senderName = "Alex Example")
         val both = reactionLayout(listOf(original, sent, theirs))
-        assertEquals(listOf("You", "Jane Felix"), both.byKey[original.key]!!.single().names)
+        assertEquals(listOf("You", "Alex Example"), both.byKey[original.key]!!.single().names)
     }
 
     @Test
@@ -554,7 +554,7 @@ class MessageLogicTest {
         assertTrue(PhoneNumbers.lookupKeys("+1 49447", "US").contains("49447"))
         assertTrue(PhoneNumbers.lookupKeys("1-49447", "US").contains("49447"))
         assertTrue(PhoneNumbers.lookupKeys("26499", "US").contains("26499"))
-        assertTrue(PhoneNumbers.lookupKeys("+1 604-369-8359", "US").none { it.length in 3..6 })
+        assertTrue(PhoneNumbers.lookupKeys("+1 555-555-0100", "US").none { it.length in 3..6 })
         assertTrue(PhoneNumbers.phoneLookupForms("49447", "US").contains("+149447"))
     }
 
