@@ -161,7 +161,12 @@ class MmsDownloadReceiver : BroadcastReceiver() {
             val file = java.io.File(context.cacheDir, fileName)
             try {
                 Log.i("Messages", "MMS download result=$code http=$http bytes=${file.length()}")
-                if (code == Activity.RESULT_OK) {
+                if (code == Activity.RESULT_OK && file.length() > MAX_RETRIEVE_BYTES) {
+                    Log.w("Messages", "MMS download is too large bytes=${file.length()}")
+                    if (!quiet) {
+                        MessageNotifier.simple(context, "Picture message", "The picture is too large to open.")
+                    }
+                } else if (code == Activity.RESULT_OK) {
                     val bytes = if (file.isFile) file.readBytes() else ByteArray(0)
                     val threadId = app.messaging.storeRetrievedMms(placeholder, bytes, address)
                     if (threadId >= 0) {
@@ -204,6 +209,7 @@ class MmsDownloadReceiver : BroadcastReceiver() {
 
     companion object {
         private val DOWNLOAD_FILE = Regex("dl-[0-9a-fA-F-]{36}\\.dat")
+        private const val MAX_RETRIEVE_BYTES = 4 * 1024 * 1024
     }
 }
 
