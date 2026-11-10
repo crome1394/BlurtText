@@ -16,6 +16,7 @@ object SendIntents {
         "mms",
         "mms-sms",
         "com.android.contacts",
+        "contacts",
     )
     fun parse(intent: Intent): Outbound? {
         val action = intent.action ?: return null
@@ -32,10 +33,11 @@ object SendIntents {
         return Outbound(addresses, body, attachment)
     }
 
-    /** A share may attach another app's content URI. It may not attach this app's own files. */
+    /** A share may attach another app's content URI. It may not attach this app's files, or the message and contact stores. */
     fun shareAttachmentAllowed(scheme: String?, authority: String?, packageName: String): Boolean {
         if (!scheme.equals("content", ignoreCase = true)) return false
-        val owner = authority.orEmpty()
+        // content://0@mms/part/1 is the mms provider. Android drops the user prefix before the lookup.
+        val owner = authority.orEmpty().substringAfterLast('@')
         if (owner.equals("$packageName.files", ignoreCase = true)) return false
         if (owner.equals("$packageName.MmsFileProvider", ignoreCase = true)) return false
         return blockedShareAuthorities.none { owner.equals(it, ignoreCase = true) }

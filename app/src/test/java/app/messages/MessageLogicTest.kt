@@ -134,6 +134,15 @@ class MessageLogicTest {
         assertFalse(SendIntents.shareAttachmentAllowed("content", "sms", pkg))
         assertFalse(SendIntents.shareAttachmentAllowed("content", "mms-sms", pkg))
         assertFalse(SendIntents.shareAttachmentAllowed("content", "com.android.contacts", pkg))
+        assertFalse(SendIntents.shareAttachmentAllowed("content", "contacts", pkg))
+        assertFalse(SendIntents.shareAttachmentAllowed("content", "0@mms", pkg))
+        assertFalse(SendIntents.shareAttachmentAllowed("content", "0@sms", pkg))
+        assertFalse(SendIntents.shareAttachmentAllowed("content", "0@mms-sms", pkg))
+        assertFalse(SendIntents.shareAttachmentAllowed("content", "0@com.android.contacts", pkg))
+        assertFalse(SendIntents.shareAttachmentAllowed("content", "0@contacts", pkg))
+        assertFalse(SendIntents.shareAttachmentAllowed("content", "10@$pkg.files", pkg))
+        assertFalse(SendIntents.shareAttachmentAllowed("content", "0@$pkg.MmsFileProvider", pkg))
+        assertTrue(SendIntents.shareAttachmentAllowed("content", "0@media", pkg))
     }
 
     @Test
