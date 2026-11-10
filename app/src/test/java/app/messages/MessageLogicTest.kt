@@ -416,6 +416,15 @@ class MessageLogicTest {
     }
 
     @Test
+    fun readsRetrievedTextInItsCharset() {
+        val parsed = MmsRetrieveParser.parse(textRetrievePdu())
+        val part = parsed?.parts?.single()
+        assertEquals("text/plain", part?.mime)
+        assertEquals(4, part?.charset)
+        assertEquals("caf\u00e9", part?.text())
+    }
+
+    @Test
     fun groupRetrieveKeepsEveryRecipient() {
         val parsed = MmsRetrieveParser.parse(groupRetrievePdu())
         assertEquals("+15551212", parsed?.from)
@@ -865,6 +874,36 @@ class MessageLogicTest {
         w(jpeg.size)
         bytes(header)
         bytes(jpeg)
+        return out.toByteArray()
+    }
+
+    private fun textRetrievePdu(): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        fun w(value: Int) = out.write(value)
+        fun bytes(value: ByteArray) = out.write(value)
+        fun text(value: String) = value.toByteArray() + byteArrayOf(0)
+        w(0x8C)
+        w(0x84)
+        w(0x98)
+        bytes(text("tid"))
+        val from = byteArrayOf(0x80.toByte()) + text("+15551212")
+        w(0x89)
+        w(from.size)
+        bytes(from)
+        val contentType = byteArrayOf(0xB3.toByte())
+        w(0x84)
+        w(contentType.size)
+        bytes(contentType)
+        val typeName = text("text/plain")
+        val partType = byteArrayOf((typeName.size + 2).toByte()) + typeName + byteArrayOf(0x81.toByte(), 0x84.toByte())
+        val name = text("note.txt")
+        val header = partType + byteArrayOf(0x8E.toByte()) + name
+        val body = byteArrayOf('c'.code.toByte(), 'a'.code.toByte(), 'f'.code.toByte(), 0xE9.toByte())
+        w(1)
+        w(header.size)
+        w(body.size)
+        bytes(header)
+        bytes(body)
         return out.toByteArray()
     }
 

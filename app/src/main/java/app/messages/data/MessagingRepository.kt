@@ -851,8 +851,8 @@ class MessagingRepository(
                 put(Telephony.Mms.Part.NAME, name)
                 put(Telephony.Mms.Part.CONTENT_LOCATION, name)
                 if (part.mime.startsWith("text/")) {
-                    put(Telephony.Mms.Part.TEXT, part.bytes.toString(Charsets.UTF_8))
-                    put(Telephony.Mms.Part.CHARSET, 106)
+                    put(Telephony.Mms.Part.TEXT, part.text())
+                    put(Telephony.Mms.Part.CHARSET, part.charset)
                 }
             }
             val partUri = context.contentResolver.insert(Uri.parse("content://mms/$id/part"), values) ?: continue

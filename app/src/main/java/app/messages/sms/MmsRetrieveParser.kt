@@ -6,7 +6,14 @@ package app.messages.sms
  * not parse that file, so the inbox has to.
  */
 object MmsRetrieveParser {
-    data class Part(val mime: String, val name: String, val bytes: ByteArray)
+    data class Part(
+        val mime: String,
+        val name: String,
+        val bytes: ByteArray,
+        val charset: Int = UTF_8,
+    ) {
+        fun text(): String = bytes.toString(charsetFor(charset))
+    }
     data class Retrieved(
         val from: String,
         val dateSeconds: Long,
@@ -95,6 +102,7 @@ object MmsRetrieveParser {
     private fun readPart(pdu: ByteArray, start: Int, headerEnd: Int, dataEnd: Int, index: Int): Part? {
         val typed = readContentType(pdu, start, headerEnd)
         var mime = typed.mime.lowercase()
+        val charset = typed.charset
         var i = typed.next
         var name = ""
         while (i < headerEnd) {
@@ -121,10 +129,10 @@ object MmsRetrieveParser {
         if (name.isBlank()) name = "part$index"
         val bytes = pdu.copyOfRange(headerEnd, dataEnd)
         if (mime == "text/plain" && bytes.isEmpty()) return null
-        return Part(mime, name.substringAfterLast('/').ifBlank { name }, bytes)
+        return Part(mime, name.substringAfterLast('/').ifBlank { name }, bytes, charset)
     }
 
-    private data class Typed(val mime: String, val next: Int)
+    private data class Typed(val mime: String, val next: Int, val charset: Int)
     private data class Text(val value: String, val next: Int)
     private data class Number(val value: Long, val next: Int)
 
@@ -132,22 +140,66 @@ object MmsRetrieveParser {
 
     private fun readContentType(pdu: ByteArray, start: Int, limit: Int): Typed {
         val marker = u8(pdu, start)
-        if (marker >= 0x80) return Typed(mimeOf(marker and 0x7F), start + 1)
+        if (marker >= 0x80) return Typed(mimeOf(marker and 0x7F), start + 1, UTF_8)
         if (marker <= 31) {
             val end = skipLength(pdu, start, limit)
             val contents = lengthContents(pdu, start)
-            val mime = if (contents < end) readMedia(pdu, contents, end) else "application/octet-stream"
-            return Typed(mime, end)
+            if (contents >= end) return Typed("application/octet-stream", end, UTF_8)
+            val media = readMediaToken(pdu, contents, end)
+            return Typed(media.mime, end, charsetParameter(pdu, media.next, end))
         }
         val text = readText(pdu, start, limit)
-        return Typed(text.value.ifBlank { "application/octet-stream" }, text.next)
+        return Typed(text.value.ifBlank { "application/octet-stream" }, text.next, UTF_8)
     }
 
-    private fun readMedia(pdu: ByteArray, start: Int, end: Int): String {
-        if (start >= end) return "application/octet-stream"
+    private data class Media(val mime: String, val next: Int)
+
+    private fun readMediaToken(pdu: ByteArray, start: Int, end: Int): Media {
+        if (start >= end) return Media("application/octet-stream", start)
         val marker = u8(pdu, start)
-        if (marker >= 0x80) return mimeOf(marker and 0x7F)
-        return readText(pdu, start, end).value.ifBlank { "application/octet-stream" }
+        if (marker >= 0x80) return Media(mimeOf(marker and 0x7F), start + 1)
+        val text = readText(pdu, start, end)
+        return Media(text.value.ifBlank { "application/octet-stream" }, text.next)
+    }
+
+    private fun charsetParameter(pdu: ByteArray, start: Int, end: Int): Int {
+        var i = start
+        var charset = UTF_8
+        while (i < end) {
+            val marker = u8(pdu, i)
+            if (marker >= 0x80) {
+                val value = readTypedValue(pdu, i + 1, end)
+                if (marker and 0x7F == 0x01) charset = value.mib ?: mibForName(value.text) ?: UTF_8
+                i = value.next
+            } else if (marker < 32) {
+                val next = skipLength(pdu, i, end)
+                if (next <= i) break
+                i = next
+            } else {
+                val name = readText(pdu, i, end)
+                val value = readTypedValue(pdu, name.next, end)
+                if (name.value.equals("charset", ignoreCase = true)) {
+                    charset = value.mib ?: mibForName(value.text) ?: UTF_8
+                }
+                i = value.next
+            }
+        }
+        return charset
+    }
+
+    private data class TypedValue(val mib: Int?, val text: String, val next: Int)
+
+    private fun readTypedValue(pdu: ByteArray, start: Int, end: Int): TypedValue {
+        if (start >= end) return TypedValue(null, "", start)
+        val marker = u8(pdu, start)
+        if (marker >= 0x80) return TypedValue(marker and 0x7F, "", start + 1)
+        if (marker in 1..30 && start + 1 + marker <= end) {
+            var value = 0
+            for (offset in 1..marker) value = (value shl 8) or u8(pdu, start + offset)
+            return TypedValue(value, "", start + 1 + marker)
+        }
+        val text = readText(pdu, start, end)
+        return TypedValue(mibForName(text.value), text.value, text.next)
     }
 
     private fun readFrom(pdu: ByteArray, start: Int, limit: Int): Text {
@@ -251,6 +303,36 @@ object MmsRetrieveParser {
         0x4F -> "audio/*"
         0x50 -> "video/*"
         else -> "application/octet-stream"
+    }
+
+    private const val UTF_8 = 106
+
+    private fun charsetFor(mib: Int): java.nio.charset.Charset = when (mib) {
+        3 -> Charsets.US_ASCII
+        in 4..12 -> java.nio.charset.Charset.forName("ISO-8859-${mib - 3}")
+        17 -> java.nio.charset.Charset.forName("Shift_JIS")
+        106 -> Charsets.UTF_8
+        1000, 1013 -> Charsets.UTF_16BE
+        1014 -> Charsets.UTF_16LE
+        1015 -> Charsets.UTF_16
+        else -> Charsets.UTF_8
+    }
+
+    private fun mibForName(name: String): Int? {
+        val clean = name.trim().lowercase().replace('_', '-')
+        when (clean) {
+            "utf-8" -> return 106
+            "us-ascii", "ascii" -> return 3
+            "shift-jis" -> return 17
+            "utf-16" -> return 1015
+            "utf-16be" -> return 1013
+            "utf-16le" -> return 1014
+            "ucs-2", "iso-10646-ucs-2" -> return 1000
+            "latin-1", "latin1" -> return 4
+        }
+        val iso = Regex("iso-8859-(\\d+)").matchEntire(clean) ?: return null
+        val part = iso.groupValues[1].toIntOrNull() ?: return null
+        return if (part in 1..9) part + 3 else null
     }
 
     private fun cleanAddress(raw: String): String = raw.substringBefore("/").trim().trim('<', '>')

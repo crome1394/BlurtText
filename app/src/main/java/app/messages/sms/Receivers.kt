@@ -167,8 +167,7 @@ class MmsDownloadReceiver : BroadcastReceiver() {
                     if (threadId >= 0) {
                         val text = MmsRetrieveParser.parse(bytes)?.parts
                             ?.firstOrNull { it.mime.startsWith("text/") }
-                            ?.bytes
-                            ?.toString(Charsets.UTF_8)
+                            ?.text()
                             .orEmpty()
                         val blocked = app.messaging.isBlocked(address)
                         val keyword = matchesBlockedKeyword(text, app.local.snapshot.blockedKeywords)
@@ -181,7 +180,7 @@ class MmsDownloadReceiver : BroadcastReceiver() {
                                 threadId,
                                 address,
                                 address.ifBlank { "Picture message" },
-                                "Picture",
+                                text,
                                 System.currentTimeMillis(),
                             )
                         }
