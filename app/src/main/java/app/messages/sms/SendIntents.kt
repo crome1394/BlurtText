@@ -11,6 +11,12 @@ data class Outbound(
 )
 
 object SendIntents {
+    private val blockedShareAuthorities = setOf(
+        "sms",
+        "mms",
+        "mms-sms",
+        "com.android.contacts",
+    )
     fun parse(intent: Intent): Outbound? {
         val action = intent.action ?: return null
         if (action != Intent.ACTION_SEND && action != Intent.ACTION_SENDTO && action != Intent.ACTION_VIEW) {
@@ -30,7 +36,9 @@ object SendIntents {
     fun shareAttachmentAllowed(scheme: String?, authority: String?, packageName: String): Boolean {
         if (!scheme.equals("content", ignoreCase = true)) return false
         val owner = authority.orEmpty()
-        return owner != "$packageName.files" && owner != "$packageName.MmsFileProvider"
+        if (owner.equals("$packageName.files", ignoreCase = true)) return false
+        if (owner.equals("$packageName.MmsFileProvider", ignoreCase = true)) return false
+        return blockedShareAuthorities.none { owner.equals(it, ignoreCase = true) }
     }
 
     private fun addresses(uri: Uri?): List<String> {

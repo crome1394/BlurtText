@@ -11,12 +11,16 @@ plugins {
 // Compiles the LanText sources in-place so this app and the LanText project stay one codebase.
 // LanTextApp is final in that project. A build-time copy marks it open so MessagesApp can
 // subclass it and keep LanTextApp.instance, the gateway, and the computer UI working.
-// A sibling checkout wins on this machine. A clean checkout uses the pinned submodule.
-val lantextMain = sequenceOf(
-    rootProject.projectDir.resolve("../lantext/app/src/main"),
-    rootProject.projectDir.resolve("external/lantext/app/src/main"),
-).firstOrNull { it.resolve("java").isDirectory }
-    ?: error("LanText sources are missing. Run: git submodule update --init")
+// The pinned submodule is the release source. A sibling checkout is used only
+// when Gradle is started with -Plantext.local=true.
+val pinnedMain = rootProject.projectDir.resolve("external/lantext/app/src/main")
+val siblingMain = rootProject.projectDir.resolve("../lantext/app/src/main")
+val useLocalLantext = providers.gradleProperty("lantext.local").orNull == "true"
+val lantextMain = when {
+    useLocalLantext && siblingMain.resolve("java").isDirectory -> siblingMain
+    pinnedMain.resolve("java").isDirectory -> pinnedMain
+    else -> error("LanText sources are missing. Run: git submodule update --init")
+}
 val lantextJava = layout.buildDirectory.dir("generated/lantext-src")
 val syncLantextSources = tasks.register<Sync>("syncLantextSources") {
     from(lantextMain.resolve("java"))

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4
+
+- An update keeps the computer inbox certificate. If that certificate cannot be opened, the inbox creates a new one and the browser accepts it once.
+- A shared file from the message store or the contact store is refused.
+- The sideload file is a signed release build.
+
 ## 0.1.3
 
 - The name is BlurtText on the phone, in settings, in notifications, and in the browser inbox.
