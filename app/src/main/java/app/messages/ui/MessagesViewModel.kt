@@ -246,9 +246,14 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
         }
         val outbound = SendIntents.parse(intent) ?: return
         viewModelScope.launch {
-            val path = outbound.attachment?.let { uri ->
+            val packageName = getApplication<Application>().packageName
+            val shared = outbound.attachment?.takeIf {
+                SendIntents.shareAttachmentAllowed(it.scheme, it.authority, packageName)
+            }
+            val path = shared?.let { uri ->
                 withContext(Dispatchers.IO) { runCatching { repo.copyAttachment(uri) }.getOrNull() }
             }
+            if (path == null && outbound.addresses.isEmpty() && outbound.body.isBlank()) return@launch
             showCompose(outbound.addresses, outbound.body, path)
         }
     }

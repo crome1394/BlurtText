@@ -26,6 +26,13 @@ object SendIntents {
         return Outbound(addresses, body, attachment)
     }
 
+    /** A share may attach another app's content URI. It may not attach this app's own files. */
+    fun shareAttachmentAllowed(scheme: String?, authority: String?, packageName: String): Boolean {
+        if (!scheme.equals("content", ignoreCase = true)) return false
+        val owner = authority.orEmpty()
+        return owner != "$packageName.files" && owner != "$packageName.MmsFileProvider"
+    }
+
     private fun addresses(uri: Uri?): List<String> {
         if (uri == null) return emptyList()
         val scheme = uri.scheme?.lowercase() ?: return emptyList()

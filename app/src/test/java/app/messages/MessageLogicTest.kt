@@ -46,6 +46,7 @@ import app.messages.data.keywordsFrom
 import app.messages.data.matchesBlockedKeyword
 import app.messages.data.sameRecipients
 import app.messages.sms.MmsNotificationParser
+import app.messages.sms.SendIntents
 import app.messages.sms.MmsRetrieveParser
 import app.lantext.brandProductText
 import app.lantext.data.pairedDeviceName
@@ -120,6 +121,15 @@ class MessageLogicTest {
         )
         assertNull(MmsNotificationParser.parse(pdu))
         assertNull(MmsRetrieveParser.parse(byteArrayOf(0x96.toByte(), 0x1F, 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte())))
+    }
+
+    @Test
+    fun shareAttachmentsStayOutsideThisApp() {
+        val pkg = "app.crome1394.blurttext"
+        assertTrue(SendIntents.shareAttachmentAllowed("content", "media", pkg))
+        assertFalse(SendIntents.shareAttachmentAllowed("file", "ignored", pkg))
+        assertFalse(SendIntents.shareAttachmentAllowed("content", "$pkg.files", pkg))
+        assertFalse(SendIntents.shareAttachmentAllowed("content", "$pkg.MmsFileProvider", pkg))
     }
 
     @Test
