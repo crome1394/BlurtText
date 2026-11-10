@@ -19,6 +19,7 @@ data class ScheduledMessage(
     val body: String,
     val sendAt: Long,
     val subscriptionId: Int? = null,
+    val failed: Boolean = false,
 )
 
 @Serializable

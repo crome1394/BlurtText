@@ -33,6 +33,7 @@ object ScheduleController {
     suspend fun rearmAll(app: MessagesApp) {
         val now = System.currentTimeMillis()
         for (item in app.local.current().scheduled) {
+            if (item.failed) continue
             val whenAt = if (item.sendAt <= now) now + 1_500 else item.sendAt
             arm(app, item.copy(sendAt = whenAt))
         }

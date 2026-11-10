@@ -288,10 +288,14 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 val item = app.local.current().scheduled.find { it.id == id } ?: return@launch
                 app.messaging.send(item.addresses, item.body, null, item.subscriptionId)
                 app.local.update { state -> state.copy(scheduled = state.scheduled.filter { it.id != id }) }
-                MessageNotifier.simple(context, "Scheduled message sent", item.body)
+                val shown = if (app.local.snapshot.notificationPreview) item.body.ifBlank { "Sent" } else "Sent"
+                MessageNotifier.simple(context, "Scheduled message sent", shown, MessageNotifier.statusId(item.id))
             } catch (t: Throwable) {
                 Log.e("Messages", "Scheduled send failed", t)
-                MessageNotifier.simple(context, "Scheduled message failed", t.message ?: "Could not send")
+                app.local.update { state ->
+                    state.copy(scheduled = state.scheduled.map { if (it.id == id) it.copy(failed = true) else it })
+                }
+                MessageNotifier.simple(context, "Scheduled message failed", t.message ?: "Could not send", MessageNotifier.statusId(item.id))
             } finally {
                 pending.finish()
             }

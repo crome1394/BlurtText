@@ -1459,7 +1459,11 @@ fun ScheduledScreen(vm: MessagesViewModel) {
             item { Text("No scheduled texts", modifier = Modifier.padding(16.dp)) }
         }
         items(settings.scheduled, key = { it.id }) { item ->
-            val whenText = Instant.ofEpochMilli(item.sendAt).atZone(ZoneId.systemDefault()).format(formatter)
+            val whenText = if (item.failed) {
+                "Did not send"
+            } else {
+                Instant.ofEpochMilli(item.sendAt).atZone(ZoneId.systemDefault()).format(formatter)
+            }
             ListItem(
                 headlineContent = { Text(item.addresses.joinToString()) },
                 supportingContent = { Text("$whenText\n${item.body}") },

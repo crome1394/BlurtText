@@ -106,7 +106,7 @@ object MessageNotifier {
         context.getSystemService(NotificationManager::class.java).cancel(notificationId(threadId))
     }
 
-    fun simple(context: Context, title: String, body: String) {
+    fun simple(context: Context, title: String, body: String, notificationId: Int = 3) {
         ensureChannel(context)
         val notification = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_message)
@@ -114,8 +114,10 @@ object MessageNotifier {
             .setContentText(body)
             .setAutoCancel(true)
             .build()
-        context.getSystemService(NotificationManager::class.java).notify(3, notification)
+        context.getSystemService(NotificationManager::class.java).notify(notificationId, notification)
     }
+
+    fun statusId(key: String): Int = (key.hashCode() and 0x7fffffff) % 80 + 10
 
     private fun notificationId(threadId: Long): Int {
         val mixed = (threadId xor (threadId ushr 32)).toInt() and 0x7fffffff
