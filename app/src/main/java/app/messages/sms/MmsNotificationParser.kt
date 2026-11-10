@@ -143,15 +143,20 @@ object MmsNotificationParser {
     }
 
     private fun skipLength(pdu: ByteArray, start: Int): Int {
+        if (start < 0 || start >= pdu.size) error("mms length")
         val marker = u8(pdu, start)
-        return when {
+        val end = when {
             marker < 31 -> start + 1 + marker
             marker == 31 -> {
                 val length = readUintvar(pdu, start + 1)
-                length.next + length.value.toInt()
+                val next = length.next.toLong() + length.value
+                if (next > Int.MAX_VALUE) error("mms length")
+                next.toInt()
             }
             else -> start
         }
+        if (end <= start || end > pdu.size) error("mms length")
+        return end
     }
 
     private fun lengthContents(pdu: ByteArray, start: Int): Int {
@@ -160,16 +165,16 @@ object MmsNotificationParser {
     }
 
     private fun readUintvar(pdu: ByteArray, start: Int): Number {
-        var value = 0
+        var value = 0L
         var i = start
         repeat(5) {
-            if (i >= pdu.size) return Number(value.toLong(), i)
+            if (i >= pdu.size) return Number(value, i)
             val byte = u8(pdu, i)
             i += 1
-            value = (value shl 7) or (byte and 0x7F)
-            if (byte and 0x80 == 0) return Number(value.toLong(), i)
+            value = (value shl 7) or (byte and 0x7F).toLong()
+            if (byte and 0x80 == 0) return Number(value, i)
         }
-        return Number(value.toLong(), i)
+        return Number(value, i)
     }
 
     private fun cleanAddress(raw: String): String = raw.substringBefore("/").trim()

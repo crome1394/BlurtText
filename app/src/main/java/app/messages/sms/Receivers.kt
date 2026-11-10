@@ -110,20 +110,20 @@ class MmsWapPushReceiver : BroadcastReceiver() {
         val data = intent.getByteArrayExtra("data")
         val header = intent.getByteArrayExtra("header")
         val raw = intent.getByteArrayExtra("pdu")
-        val notification = MmsNotificationParser.parse(data)
-            ?: MmsNotificationParser.parse(raw)
-            ?: if (data != null && header != null) MmsNotificationParser.parse(header + data) else null
-            ?: MmsNotificationParser.parse(header)
-        if (notification == null) {
-            Log.w("Messages", "Could not read an MMS notification bytes=${data?.size ?: raw?.size ?: 0}")
-            return
-        }
-        Log.i("Messages", "MMS notification bytes=${data?.size ?: raw?.size ?: 0}")
         val subId = intent.getIntExtra("subscription", intent.getIntExtra("android.telephony.extra.SUBSCRIPTION_INDEX", -1))
         val app = context.applicationContext as? MessagesApp ?: return
         val pending = goAsync()
         Thread {
             try {
+                val notification = MmsNotificationParser.parse(data)
+                    ?: MmsNotificationParser.parse(raw)
+                    ?: if (data != null && header != null) MmsNotificationParser.parse(header + data) else null
+                    ?: MmsNotificationParser.parse(header)
+                if (notification == null) {
+                    Log.w("Messages", "Could not read an MMS notification bytes=${data?.size ?: raw?.size ?: 0}")
+                    return@Thread
+                }
+                Log.i("Messages", "MMS notification bytes=${data?.size ?: raw?.size ?: 0}")
                 val uri = app.messaging.acceptMmsNotification(notification, subId) ?: return@Thread
                 MmsInbound.begin(context, uri, notification.contentLocation, notification.from, subId, quiet = false)
                 app.messaging.ping()

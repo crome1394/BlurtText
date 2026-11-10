@@ -106,6 +106,23 @@ class MessageLogicTest {
     }
 
     @Test
+    fun rejectsANotificationLengthThatOverflows() {
+        val pdu = byteArrayOf(
+            0x8C.toByte(),
+            0x82.toByte(),
+            0x88.toByte(),
+            0x1F,
+            0xFF.toByte(),
+            0xFF.toByte(),
+            0xFF.toByte(),
+            0xFF.toByte(),
+            0xFF.toByte(),
+        )
+        assertNull(MmsNotificationParser.parse(pdu))
+        assertNull(MmsRetrieveParser.parse(byteArrayOf(0x96.toByte(), 0x1F, 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte())))
+    }
+
+    @Test
     fun klipyPicksGifUnderMmsCap() {
         val hits = KlipyGifs.hitsFrom(
             """

@@ -210,11 +210,13 @@ object MmsRetrieveParser {
             marker < 31 -> start + 1 + marker
             marker == 31 -> {
                 val length = readUintvar(pdu, start + 1, limit)
-                length.next + length.value.toInt()
+                val next = length.next.toLong() + length.value
+                if (next > Int.MAX_VALUE) error("mms length")
+                next.toInt()
             }
             else -> start
         }
-        if (end > limit) error("mms length")
+        if (end <= start || end > limit) error("mms length")
         return end
     }
 
