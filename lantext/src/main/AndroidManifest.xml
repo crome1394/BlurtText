@@ -40,12 +40,15 @@
             android:exported="false" />
 
         <receiver
+            android:name="app.lantext.widget.ToggleReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name="app.lantext.widget.ToggleWidget"
             android:exported="true"
             android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="app.lantext.widget.TOGGLE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
