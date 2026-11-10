@@ -68,6 +68,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -895,6 +896,11 @@ private fun BackupPage(
     import: androidx.activity.compose.ManagedActivityResultLauncher<Array<String>, Uri?>,
 ) {
     val page = "Backup"
+    val exportGeneration = remember { mutableIntStateOf(0) }
+    val exportShare = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        val generation = exportGeneration.intValue
+        if (generation != 0) vm.releaseBackupExport(generation)
+    }
     val rows = listOf(
         visible(query, page, "Export texts", "JSON"),
         visible(query, page, "Import texts", "backup"),
@@ -913,13 +919,19 @@ private fun BackupPage(
                         TextButton(onClick = {
                             scope.launch {
                                 runCatching { vm.exportBackup() }
-                                    .onSuccess { file ->
-                                        val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
+                                    .onSuccess { exported ->
+                                        exportGeneration.intValue = exported.generation
+                                        val uri = FileProvider.getUriForFile(context, context.packageName + ".files", exported.file)
                                         val share = Intent(Intent.ACTION_SEND)
                                             .setType("application/json")
                                             .putExtra(Intent.EXTRA_STREAM, uri)
                                             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        context.startActivity(Intent.createChooser(share, "Export texts"))
+                                        runCatching {
+                                            exportShare.launch(Intent.createChooser(share, "Export texts"))
+                                        }.onFailure {
+                                            vm.releaseBackupExport(exported.generation, delayMs = 0)
+                                            vm.snackbar.showSnackbar(it.message ?: "Could not export")
+                                        }
                                     }
                                     .onFailure { vm.snackbar.showSnackbar(it.message ?: "Could not export") }
                             }

@@ -33,6 +33,7 @@ import app.messages.sms.KlipyGifs
 import app.messages.sms.SendPipeline
 import app.messages.sms.SmsRole
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,9 +44,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicInteger
 import java.io.File
 import java.util.ArrayDeque
 import java.util.UUID
+
+internal class BackupExport(val file: File, val generation: Int)
 
 sealed interface Screen {
     data object Inbox : Screen
@@ -63,6 +67,7 @@ sealed interface Screen {
 }
 
 class MessagesViewModel(app: Application) : AndroidViewModel(app) {
+    private val backupExportGeneration = AtomicInteger()
     private val messages = MessagesApp.from(app)
     private val repo = messages.messaging
     private val local = messages.local
@@ -679,11 +684,29 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
 
     fun exportThreadText(threadId: Long): String = repo.exportThread(threadId)
 
-    suspend fun exportBackup(): File = withContext(Dispatchers.IO) {
-        val file = File(getApplication<Application>().cacheDir, "messages-backup.json")
-        repo.exportTo(file)
-        file
+    suspend fun exportBackup(): BackupExport = withContext(Dispatchers.IO) {
+        val file = backupExportFile()
+        val generation = backupExportGeneration.incrementAndGet()
+        try {
+            repo.exportTo(file)
+        } catch (t: Throwable) {
+            file.delete()
+            throw t
+        }
+        BackupExport(file, generation)
     }
+
+    fun releaseBackupExport(generation: Int, delayMs: Long = 20_000) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // The share target opens the file after the sheet closes.
+            if (delayMs > 0) delay(delayMs)
+            if (backupExportGeneration.get() != generation) return@launch
+            backupExportFile().delete()
+        }
+    }
+
+    private fun backupExportFile(): File =
+        File(getApplication<Application>().cacheDir, "messages-backup.json")
 
     suspend fun importBackup(uri: Uri): Int = withContext(Dispatchers.IO) {
         val text = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }

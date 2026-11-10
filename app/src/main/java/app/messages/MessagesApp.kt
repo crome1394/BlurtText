@@ -44,6 +44,10 @@ class MessagesApp : LanTextApp() {
         super.onCreate()
         local = LocalStore(this)
         messaging = MessagingRepository(this, local)
+        val staleBackup = java.io.File(cacheDir, "messages-backup.json")
+        if (staleBackup.isFile && System.currentTimeMillis() - staleBackup.lastModified() > 120_000) {
+            staleBackup.delete()
+        }
         phoneDesktop = phoneDesktopBridge()
         MessageNotifier.ensureChannel(this)
         messaging.start()
