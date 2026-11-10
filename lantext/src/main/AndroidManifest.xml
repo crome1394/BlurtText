@@ -55,7 +55,7 @@
         <provider
             android:name="com.klinker.android.send_message.MmsFileProvider"
             android:authorities="${applicationId}.MmsFileProvider"
-            android:exported="true"
+            android:exported="false"
             android:grantUriPermissions="true" />
     </application>
 </manifest>
