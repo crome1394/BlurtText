@@ -4,7 +4,7 @@ Android SMS and MMS app. It is the phone's default texting app, and a computer o
 
 Open it if you want one messenger for texts, pictures, GIFs, and a browser inbox, without a carrier app in the middle.
 
-Source: [github.com/crome1394/BlurtText](https://github.com/crome1394/BlurtText). A test build is on the [latest GitHub release](https://github.com/crome1394/BlurtText/releases/latest). That file is a debug APK for sideloading.
+Source: [github.com/crome1394/BlurtText](https://github.com/crome1394/BlurtText). Sideload [blurttext-0.1.3-debug.apk](https://github.com/crome1394/BlurtText/releases/download/v0.1.3/blurttext-0.1.3-debug.apk) (debug-signed, version 0.1.3).
 
 - SMS, multipart SMS, and MMS (pictures, GIFs, video, voice) through Android's telephony provider
 - Swipe a conversation to mark it read or unread, or to delete it. A read thread offers Mark as unread. An unread thread offers Mark as read. A delete can be undone from Trash.
@@ -12,6 +12,10 @@ Source: [github.com/crome1394/BlurtText](https://github.com/crome1394/BlurtText)
 - Multi-SIM send, scheduled texts, block list, and a keyword filter
 - Computer inbox at `https://blurttext.lan:8743` on your LAN, including GIF search when a KLIPY key is saved on the phone. The numeric address on the phone still works.
 - Apache-2.0
+
+## Sideload
+
+[blurttext-0.1.3-debug.apk](https://github.com/crome1394/BlurtText/releases/download/v0.1.3/blurttext-0.1.3-debug.apk). Android 8.0 or newer. The install id is `app.crome1394.blurttext`. It updates a phone that already has this debug build. Set BlurtText as the default SMS app after installing.
 
 ## What you need
 
