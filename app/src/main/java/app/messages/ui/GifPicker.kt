@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import android.os.Build
+import androidx.annotation.RequiresApi
 import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.compose.foundation.Image
@@ -258,6 +259,7 @@ fun AnimatedGif(bytes: ByteArray, modifier: Modifier, description: String, crop:
 private fun stillGif(bytes: ByteArray): ImageBitmap? =
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
 
+@RequiresApi(28)
 private fun decodeGif(context: android.content.Context, bytes: ByteArray): android.graphics.drawable.Drawable {
     val source = if (Build.VERSION.SDK_INT >= 31) {
         ImageDecoder.createSource(ByteBuffer.wrap(bytes))
