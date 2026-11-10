@@ -125,7 +125,15 @@ class MmsWapPushReceiver : BroadcastReceiver() {
                 }
                 Log.i("Messages", "MMS notification bytes=${data?.size ?: raw?.size ?: 0}")
                 val uri = app.messaging.acceptMmsNotification(notification, subId) ?: return@Thread
-                MmsInbound.begin(context, uri, notification.contentLocation, notification.from, subId, quiet = false)
+                val blocked = app.messaging.isBlocked(notification.from)
+                MmsInbound.begin(
+                    context,
+                    uri,
+                    notification.contentLocation,
+                    notification.from,
+                    subId,
+                    quiet = blocked,
+                )
                 app.messaging.ping()
             } catch (t: Throwable) {
                 Log.e("Messages", "MMS download failed to start", t)
@@ -157,14 +165,26 @@ class MmsDownloadReceiver : BroadcastReceiver() {
                     val bytes = if (file.isFile) file.readBytes() else ByteArray(0)
                     val threadId = app.messaging.storeRetrievedMms(placeholder, bytes, address)
                     if (threadId >= 0) {
-                        MessageNotifier.notifyIncoming(
-                            context,
-                            threadId,
-                            address,
-                            address.ifBlank { "Picture message" },
-                            "Picture",
-                            System.currentTimeMillis(),
-                        )
+                        val text = MmsRetrieveParser.parse(bytes)?.parts
+                            ?.firstOrNull { it.mime.startsWith("text/") }
+                            ?.bytes
+                            ?.toString(Charsets.UTF_8)
+                            .orEmpty()
+                        val blocked = app.messaging.isBlocked(address)
+                        val keyword = matchesBlockedKeyword(text, app.local.snapshot.blockedKeywords)
+                        if (blocked) {
+                            app.messaging.markRead(threadId)
+                            app.messaging.setArchived(listOf(threadId), true)
+                        } else if (!keyword) {
+                            MessageNotifier.notifyIncoming(
+                                context,
+                                threadId,
+                                address,
+                                address.ifBlank { "Picture message" },
+                                "Picture",
+                                System.currentTimeMillis(),
+                            )
+                        }
                     } else if (!quiet) {
                         MessageNotifier.simple(context, "Picture message", "The picture downloaded, but it could not be opened.")
                     } else {
