@@ -2,6 +2,7 @@ package app.messages.data
 
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 fun formatThreadTitle(names: List<String>): String {
@@ -115,13 +116,25 @@ fun formatMessageStamp(
     val zdt = Instant.ofEpochMilli(millis).atZone(zone)
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     val date = zdt.toLocalDate()
-    val time = DateTimeFormatter.ofPattern("h:mm a")
+    val time = DateTimeFormatter.ofPattern("h:mm:ss a")
     return when {
         date == today -> zdt.format(time)
         date == today.minusDays(1) -> "Yesterday " + zdt.format(time)
-        date.year == today.year -> zdt.format(DateTimeFormatter.ofPattern("MMM d, h:mm a"))
-        else -> zdt.format(DateTimeFormatter.ofPattern("MMM d, yyyy, h:mm a"))
+        date.year == today.year -> zdt.format(DateTimeFormatter.ofPattern("MMM d, h:mm:ss a"))
+        else -> zdt.format(DateTimeFormatter.ofPattern("MMM d, yyyy, h:mm:ss a"))
     }
+}
+
+/** Day and clock the schedule picker opens on. The date is UTC midnight, which is how Material stores a calendar day. */
+data class SchedulePickerSeed(val dateUtcMillis: Long, val hour: Int, val minute: Int)
+
+fun schedulePickerSeed(
+    nowMillis: Long = System.currentTimeMillis(),
+    zone: ZoneId = ZoneId.systemDefault(),
+): SchedulePickerSeed {
+    val zdt = Instant.ofEpochMilli(nowMillis).atZone(zone)
+    val dateUtcMillis = zdt.toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+    return SchedulePickerSeed(dateUtcMillis, zdt.hour, zdt.minute)
 }
 
 fun formatFullStamp(millis: Long, zone: ZoneId = ZoneId.systemDefault()): String {

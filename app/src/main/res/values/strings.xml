@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="messages_app_name">lMessages</string>
+    <string name="app_name">BlurtText</string>
+    <string name="messages_app_name">BlurtText</string>
+    <string name="notification_listening">BlurtText is available on this Wi-Fi</string>
+    <string name="notification_local_network">Allow local network access so a computer can open BlurtText</string>
+    <string name="widget_description">Turn BlurtText web access on or off</string>
 </resources>

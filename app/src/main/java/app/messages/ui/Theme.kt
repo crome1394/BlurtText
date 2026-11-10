@@ -15,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -99,6 +101,47 @@ private data class ColorSet(
         outline = line,
         error = danger,
     )
+}
+
+private fun Color.toward(other: Color, amount: Float): Color = lerp(this, other, amount)
+
+/** Page behind the inbox rows and the open conversation. A lighter step of the theme surface in dark mode, a slightly deeper step in light mode. */
+fun ColorScheme.mailCanvas(): Color {
+    val base = surface
+    return if (base.luminance() < 0.4f) base.toward(Color.White, 0.20f) else base.toward(Color.Black, 0.07f)
+}
+
+/** Solid card sitting on [mailCanvas]. */
+fun ColorScheme.mailCard(): Color = surface
+
+/** Alternating inbox card, still in the same palette as [mailCard]. */
+fun ColorScheme.mailCardStripe(): Color {
+    val card = mailCard()
+    return if (card.luminance() < 0.4f) card.toward(Color.White, 0.06f) else card.toward(Color.Black, 0.04f)
+}
+
+/** Search field, one step lighter or deeper than the page. */
+fun ColorScheme.mailSearch(): Color {
+    val canvas = mailCanvas()
+    return if (canvas.luminance() < 0.5f) canvas.toward(Color.White, 0.12f) else canvas.toward(Color.Black, 0.05f)
+}
+
+/**
+ * Text and icons on the mail page and cards. Uses the palette ink when it
+ * stays readable, and falls back when a palette's ink would disappear.
+ */
+fun ColorScheme.mailInk(): Color {
+    val ink = onSurface
+    val card = mailCard()
+    val canvas = mailCanvas()
+    if (contrastRatio(ink, card) >= 4.5f && contrastRatio(ink, canvas) >= 4.5f) return ink
+    return if (card.luminance() < 0.4f) Color.White else Color.Black
+}
+
+fun contrastRatio(foreground: Color, background: Color): Float {
+    val lighter = maxOf(foreground.luminance(), background.luminance())
+    val darker = minOf(foreground.luminance(), background.luminance())
+    return (lighter + 0.05f) / (darker + 0.05f)
 }
 
 val ThemeChoices: List<ThemeChoice> = listOf(

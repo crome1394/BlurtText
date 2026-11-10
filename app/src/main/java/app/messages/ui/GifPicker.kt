@@ -83,6 +83,7 @@ fun GifPicker(
     onAttached: (String) -> Unit,
     onError: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var query by remember { mutableStateOf("") }
     var hits by remember { mutableStateOf<List<KlipyGifs.Hit>>(emptyList()) }
@@ -110,7 +111,7 @@ fun GifPicker(
             note = it.message ?: "KLIPY search failed"
         }
     }
-    Column(Modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxSize()) {
         if (!hasKey) {
             Text(
                 "Add a KLIPY API key in Settings",
@@ -138,7 +139,7 @@ fun GifPicker(
                 }
             }
         }
-        Box(Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
             when {
                 !hasKey -> Unit
                 loading && hits.isEmpty() -> CircularProgressIndicator()

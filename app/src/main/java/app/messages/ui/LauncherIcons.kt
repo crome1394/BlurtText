@@ -15,9 +15,8 @@ data class LauncherPreset(
 
 object LauncherIcons {
     val presets: List<LauncherPreset> = listOf(
-        LauncherPreset("original", "Original", R.drawable.ic_messages_foreground, R.color.messages_launcher_background, "app.messages.LauncherOriginal"),
-        LauncherPreset("black", "Black", R.drawable.ic_sms_icon_black, R.color.launcher_bg_light, "app.messages.LauncherBlack"),
         LauncherPreset("cyan", "Cyan", R.drawable.ic_sms_icon_cyan, R.color.launcher_bg_dark, "app.messages.LauncherCyan"),
+        LauncherPreset("black", "Black", R.drawable.ic_sms_icon_black, R.color.launcher_bg_light, "app.messages.LauncherBlack"),
         LauncherPreset("dark_blue", "Dark blue", R.drawable.ic_sms_icon_dark_blue, R.color.launcher_bg_dark, "app.messages.LauncherDarkBlue"),
         LauncherPreset("dark_purple", "Dark purple", R.drawable.ic_sms_icon_dark_purple, R.color.launcher_bg_dark, "app.messages.LauncherDarkPurple"),
         LauncherPreset("dark_red", "Dark red", R.drawable.ic_sms_icon_dark_red, R.color.launcher_bg_dark, "app.messages.LauncherDarkRed"),
@@ -30,7 +29,10 @@ object LauncherIcons {
         LauncherPreset("yellow", "Yellow", R.drawable.ic_sms_icon_yellow, R.color.launcher_bg_dark, "app.messages.LauncherYellow"),
     )
 
-    fun canonical(raw: String): String = presets.firstOrNull { it.id == raw }?.id ?: "original"
+    fun canonical(raw: String): String {
+        val id = if (raw == "original") "cyan" else raw
+        return presets.firstOrNull { it.id == id }?.id ?: "cyan"
+    }
 
     /** Enables the chosen launcher alias first, then disables the others. No-ops when it already matches. */
     fun apply(context: Context, raw: String) {
@@ -39,7 +41,8 @@ object LauncherIcons {
         val enabled = presets.associate { preset ->
             preset.id to componentEnabled(pm, ComponentName(context, preset.alias), preset.id == "cyan")
         }
-        if (enabled.all { (presetId, on) -> on == (presetId == id) }) return
+        val originalOn = componentEnabled(pm, ComponentName(context, ORIGINAL_ALIAS), false)
+        if (!originalOn && enabled.all { (presetId, on) -> on == (presetId == id) }) return
         val flag = PackageManager.DONT_KILL_APP
         pm.setComponentEnabledSetting(
             ComponentName(context, presets.first { it.id == id }.alias),
@@ -53,6 +56,12 @@ object LauncherIcons {
                 flag,
             )
         }
+        // The green bubble used to be this alias. Keep it off so the home screen shows one icon.
+        pm.setComponentEnabledSetting(
+            ComponentName(context, ORIGINAL_ALIAS),
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            flag,
+        )
     }
 
     private fun componentEnabled(pm: PackageManager, component: ComponentName, manifestDefault: Boolean): Boolean {
@@ -62,4 +71,6 @@ object LauncherIcons {
             else -> manifestDefault
         }
     }
+
+    private const val ORIGINAL_ALIAS = "app.messages.LauncherOriginal"
 }

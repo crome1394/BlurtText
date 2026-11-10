@@ -22,6 +22,12 @@ data class ScheduledMessage(
 )
 
 @Serializable
+data class TrashedThread(
+    val threadId: Long,
+    val trashedAt: Long,
+)
+
+@Serializable
 data class Persisted(
     val version: Int = 1,
     val theme: String = "system",
@@ -67,6 +73,12 @@ data class Persisted(
         RibbonItem("settings"),
         RibbonItem("computer"),
     ),
+    val trash: List<TrashedThread> = emptyList(),
+    val autoTrashEnabled: Boolean = false,
+    val autoTrashDays: Int = 30,
+    val autoDeleteTrashEnabled: Boolean = false,
+    val autoDeleteTrashDays: Int = 30,
+    val inboxGroup: String = "none",
 )
 
 @Serializable
@@ -151,23 +163,116 @@ fun moveRibbonItem(items: List<RibbonItem>, index: Int, delta: Int): List<Ribbon
 
 fun ribbonTopCount(raw: Int): Int = raw.coerceIn(1, 5)
 
-val footerActionIds = listOf("search", "settings", "computer", "filter")
+val footerActionIds = listOf("search", "settings", "computer", "filter", "trash")
 
 fun footerLabel(id: String): String = when (id) {
     "search" -> "Search"
     "settings" -> "Settings"
-    "computer" -> "LanMessaging"
+    "computer" -> "BlurtText"
     "filter" -> "Filter"
+    "trash" -> "Trash"
     else -> id
 }
 
 fun resolvedFooter(saved: List<RibbonItem>): List<RibbonItem> {
     val known = saved.filter { it.id in footerActionIds }.distinctBy { it.id }
-    val missing = footerActionIds.filter { id -> known.none { it.id == id } }.map { RibbonItem(it) }
+    val missing = footerActionIds.filter { id -> known.none { it.id == id } }.map { id ->
+        RibbonItem(id, shown = id != "trash")
+    }
     return known + missing
 }
 
+fun coerceTrashDays(raw: Int): Int = raw.coerceIn(1, 3650)
+
+/**
+ * Keeps Trash in step with the inbox.
+ * A newer message removes that conversation from Trash.
+ * When [autoEnabled] is on, conversations older than [days] move to Trash.
+ * An empty [conversations] list is left alone so a slow load cannot empty Trash.
+ * The open conversation and pinned conversations stay where they are.
+ */
+fun reconcileTrash(
+    conversations: List<Conversation>,
+    trash: List<TrashedThread>,
+    autoEnabled: Boolean,
+    days: Int,
+    now: Long,
+    openThreadId: Long,
+    pinned: Set<Long>,
+): List<TrashedThread> {
+    if (conversations.isEmpty()) return trash
+    val byId = conversations.associateBy { it.threadId }
+    val kept = trash.filter { entry ->
+        val conversation = byId[entry.threadId] ?: return@filter true
+        conversation.timestamp <= entry.trashedAt
+    }
+    if (!autoEnabled) return kept
+    val cutoff = now - coerceTrashDays(days).toLong() * 86_400_000L
+    val already = kept.map { it.threadId }.toSet()
+    val add = conversations.mapNotNull { conversation ->
+        if (conversation.threadId in already) return@mapNotNull null
+        if (conversation.threadId == openThreadId) return@mapNotNull null
+        if (conversation.threadId in pinned) return@mapNotNull null
+        if (conversation.timestamp <= 0L || conversation.timestamp >= cutoff) return@mapNotNull null
+        TrashedThread(conversation.threadId, now)
+    }
+    return kept + add
+}
+
+/**
+ * Threads that have been in Trash for at least [days].
+ * Nothing is selected while [enabled] is off, and the open thread is left in Trash.
+ */
+fun trashDueForDeletion(
+    trash: List<TrashedThread>,
+    enabled: Boolean,
+    days: Int,
+    now: Long,
+    openThreadId: Long = -1L,
+): Set<Long> {
+    if (!enabled || trash.isEmpty()) return emptySet()
+    val cutoff = now - coerceTrashDays(days).toLong() * 86_400_000L
+    return trash.mapNotNull { entry ->
+        if (entry.threadId == openThreadId) return@mapNotNull null
+        if (entry.trashedAt > cutoff) return@mapNotNull null
+        entry.threadId
+    }.toSet()
+}
+
 fun footerHeightDp(raw: Int): Int = raw.coerceIn(48, 96)
+
+/** Icon button size for a footer of [height] dp. Taller footers get larger icons. */
+fun footerButtonDp(height: Int): Int = (footerHeightDp(height) * 0.78f).toInt().coerceIn(40, 76)
+
+/** Glyph size inside [footerButtonDp]. */
+fun footerGlyphDp(height: Int): Int = (footerButtonDp(height) * 0.52f).toInt().coerceIn(22, 40)
+
+/** A horizontal swipe commits once it has crossed about a quarter of the row. */
+fun swipeCommitPx(widthPx: Float): Float = widthPx * 0.25f
+
+/** A read thread offers unread. An unread thread offers read. */
+fun swipeReadUnreadLabel(unread: Boolean): String =
+    if (unread) "Mark as read" else "Mark as unread"
+
+/** A sideways move waits this long before the row reveals Delete or Read, so a scroll does not flash it. */
+const val swipeArmMs = 100L
+
+/**
+ * True once the finger has moved sideways past the slop and has been down for [armMs].
+ * A mostly vertical move stays false so the list can scroll.
+ */
+fun swipeRevealReady(
+    elapsedMs: Long,
+    travelX: Float,
+    travelY: Float,
+    slop: Float,
+    armMs: Long = swipeArmMs,
+): Boolean {
+    val pastSlop = kotlin.math.abs(travelX) > slop * 3f || kotlin.math.abs(travelY) > slop * 3f
+    if (!pastSlop) return false
+    if (kotlin.math.abs(travelX) <= kotlin.math.abs(travelY) * 2f) return false
+    return elapsedMs >= armMs
+}
 
 fun addressesMatchBlocked(addresses: List<String>, blocked: List<String>): Boolean {
     val keys = blocked.map { raw -> raw.filter { it.isDigit() } }.filter { it.isNotEmpty() }.toSet()

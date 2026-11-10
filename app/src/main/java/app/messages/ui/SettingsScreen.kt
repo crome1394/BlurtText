@@ -14,12 +14,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.core.tween
@@ -27,6 +35,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -34,6 +43,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -42,31 +52,39 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -80,6 +98,7 @@ import app.messages.data.resolvedRibbon
 import app.messages.data.ribbonLabel
 import app.messages.data.ribbonTopCount
 import app.messages.data.simDetail
+import app.messages.data.inboxGroupMode
 import app.messages.data.swipeAction
 import app.messages.sms.KlipyGifs
 import kotlinx.coroutines.delay
@@ -89,6 +108,10 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 const val SETTINGS_TAB_LAN_MESSAGING = 11
+
+internal const val SETTINGS_CARD_MIN = 0.34f
+internal const val SETTINGS_CARD_MAX = 0.94f
+internal const val SETTINGS_CARD_START = 0.68f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,67 +156,140 @@ fun SettingsScreen(vm: MessagesViewModel, onRequestRole: () -> Unit) {
     val searchField = @Composable {
         SettingsSearch(query) { query = it }
     }
-    Scaffold(
-        modifier = Modifier.imePadding(),
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = { IconButton(onClick = vm::pop) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-            )
-        },
-        bottomBar = {
-            if (settings.searchAtBottom) {
-                Column {
-                    HorizontalDivider()
-                    searchField()
-                }
-            }
-        },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            if (!settings.searchAtBottom) searchField()
-            PrimaryScrollableTabRow(selectedTabIndex = pager.currentPage) {
-                settingTabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = pager.currentPage == index,
-                        onClick = { scope.launch { pager.animateScrollToPage(index) } },
-                        text = { Text(title, maxLines = 1) },
+    val fraction = rememberSaveable { mutableStateOf(SETTINGS_CARD_START) }
+    BoxWithConstraints(
+        Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+    ) {
+        val spanPx = with(LocalDensity.current) { maxHeight.toPx() }
+        val cap = maxHeight * SETTINGS_CARD_MAX
+        val floor = if (280.dp < cap) 280.dp else cap
+        val cardHeight = (maxHeight * fraction.value).coerceIn(floor, cap)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(cardHeight)
+                .pointerInput(Unit) {
+                    // Keep taps on empty card space here, so they do not land on the screen behind.
+                    awaitPointerEventScope {
+                        while (true) {
+                            awaitPointerEvent()
+                        }
+                    }
+                },
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 6.dp,
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .dragToResize(spanPx, fraction)
+                        .padding(top = 10.dp, bottom = 4.dp)
+                        .semantics { contentDescription = "Drag to resize settings" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .width(36.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)),
                     )
                 }
-            }
-            HorizontalPager(
-                state = pager,
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                beyondViewportPageCount = 0,
-                flingBehavior = PagerDefaults.flingBehavior(
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Settings",
+                        modifier = Modifier
+                            .weight(1f)
+                            .dragToResize(spanPx, fraction)
+                            .padding(start = 16.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    IconButton(onClick = vm::closeSettings) { Icon(Icons.Filled.Close, "Close settings") }
+                }
+                if (!settings.searchAtBottom) searchField()
+                PrimaryScrollableTabRow(
+                    selectedTabIndex = pager.currentPage,
+                    containerColor = Color.Transparent,
+                ) {
+                    settingTabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = pager.currentPage == index,
+                            onClick = { scope.launch { pager.animateScrollToPage(index) } },
+                            text = { Text(title, maxLines = 1) },
+                        )
+                    }
+                }
+                HorizontalPager(
                     state = pager,
-                    snapAnimationSpec = tween(durationMillis = 180),
-                ),
-            ) { page ->
-                when (page) {
-                    0 -> SettingsGeneralPage(vm, settings, isDefault, query, onRequestRole) {
-                        scope.launch { pager.animateScrollToPage(SETTINGS_TAB_LAN_MESSAGING) }
+                    modifier = Modifier.fillMaxWidth().weight(1f).background(Color.Black),
+                    beyondViewportPageCount = 0,
+                    flingBehavior = PagerDefaults.flingBehavior(
+                        state = pager,
+                        snapAnimationSpec = tween(durationMillis = 180),
+                    ),
+                ) { page ->
+                    val scheme = MaterialTheme.colorScheme
+                    val pageScheme = if (contrastRatio(scheme.onSurface, Color.Black) >= 4.5f) {
+                        scheme
+                    } else {
+                        scheme.copy(
+                            onSurface = Color.White,
+                            onSurfaceVariant = Color(0xFFCAC4D0),
+                            onBackground = Color.White,
+                        )
                     }
-                    1 -> AppearancePage(vm, settings, query)
-                    2 -> SendingPage(vm, settings, exact, context, query)
-                    3 -> CarrierPage(vm, settings, query)
-                    4 -> NotificationsPage(vm, settings, query)
-                    5 -> BlockingPage(vm, keywords, query, onKeywords = { keywords = it })
-                    6 -> GifsPage(vm, gifKey, showGifKey, query, context, onKey = { gifKey = it }, onShow = { showGifKey = it })
-                    7 -> BackupPage(vm, query, context, scope, import)
-                    8 -> SwipePage(vm, settings, query)
-                    9 -> RibbonPage(vm, settings, query)
-                    10 -> FooterPage(vm, settings, query)
-                    SETTINGS_TAB_LAN_MESSAGING -> {
-                        if (query.isNotBlank() && !tabMatches(page, query)) NoMatches()
-                        else LanMessagingPage(active = pager.currentPage == page)
+                    MaterialTheme(colorScheme = pageScheme) {
+                    Box(Modifier.fillMaxSize().background(Color.Black)) {
+                    when (page) {
+                        0 -> SettingsGeneralPage(vm, settings, isDefault, query, onRequestRole) {
+                            scope.launch { pager.animateScrollToPage(SETTINGS_TAB_LAN_MESSAGING) }
+                        }
+                        1 -> AppearancePage(vm, settings, query)
+                        2 -> SendingPage(vm, settings, exact, context, query)
+                        3 -> CarrierPage(vm, settings, query)
+                        4 -> NotificationsPage(vm, settings, query)
+                        5 -> BlockingPage(vm, keywords, query, onKeywords = { keywords = it })
+                        6 -> GifsPage(vm, gifKey, showGifKey, query, context, onKey = { gifKey = it }, onShow = { showGifKey = it })
+                        7 -> BackupPage(vm, query, context, scope, import)
+                        8 -> SwipePage(vm, settings, query)
+                        9 -> RibbonPage(vm, settings, query)
+                        10 -> FooterPage(vm, settings, query)
+                        SETTINGS_TAB_LAN_MESSAGING -> {
+                            if (query.isNotBlank() && !tabMatches(page, query)) NoMatches()
+                            else LanMessagingPage(active = pager.currentPage == page)
+                        }
+                        else -> AboutPage(query)
                     }
-                    else -> AboutPage(query)
+                    }
+                    }
+                }
+                if (settings.searchAtBottom) {
+                    HorizontalDivider()
+                    searchField()
                 }
             }
         }
     }
 }
+
+/** Finger moving down (positive [dragPx]) makes the card shorter. */
+internal fun settingsCardFraction(current: Float, dragPx: Float, spanPx: Float): Float {
+    if (spanPx <= 0f) return current.coerceIn(SETTINGS_CARD_MIN, SETTINGS_CARD_MAX)
+    return (current - dragPx / spanPx).coerceIn(SETTINGS_CARD_MIN, SETTINGS_CARD_MAX)
+}
+
+internal fun Modifier.dragToResize(spanPx: Float, fraction: MutableState<Float>): Modifier =
+    pointerInput(spanPx) {
+        detectVerticalDragGestures { _, dragAmount ->
+            fraction.value = settingsCardFraction(fraction.value, dragAmount, spanPx)
+        }
+    }
 
 private val settingTabs = listOf(
     "Settings",
@@ -207,7 +303,7 @@ private val settingTabs = listOf(
     "Swipe",
     "Ribbon",
     "Footer",
-    "LanMessaging",
+    "BlurtText",
     "About",
 )
 
@@ -217,7 +313,7 @@ private fun tabMatches(index: Int, query: String): Boolean {
     val title = settingTabs.getOrNull(index).orEmpty()
     if (title.contains(q, ignoreCase = true)) return true
     val blob = when (index) {
-        0 -> "computer default sms search at the bottom wifi"
+        0 -> "computer default sms search at the bottom wifi delete old conversations days duration group conversations read unread received date sms mms pinned delete trash permanently"
         1 -> "theme system light dark color palette dynamic wallpaper alternating threads text size small normal large extra app icon launcher original black cyan dark blue dark purple dark red green light blue orange purple red white yellow fern ocean dusk ember slate sakura meadow nord contrast"
         2 -> "enter key sends delivery reports exact alarms scheduled"
         3 -> "default sim carrier indicator sent received name number time message type sms mms system"
@@ -225,11 +321,11 @@ private fun tabMatches(index: Int, query: String): Boolean {
         5 -> "keyword filter blocked numbers phrase"
         6 -> "klipy api key partner gif"
         7 -> "export import texts json backup"
-        8 -> "left side right side unread delete none thread"
+        8 -> "right swipe left swipe change mark as read unread delete none thread trash"
         9 -> "ribbon pin unpin mark as read mark as unread delete block archive show hide drag move to the top selected arrangement"
-        10 -> "footer height search settings computer filter icon show hide"
-        11 -> "lanmessaging wifi port paired computers web access networks listen"
-        12 -> "version lanmessaging computer access github apache license apk download"
+        10 -> "footer height search settings computer filter trash icon show hide"
+        11 -> "blurttext wifi port paired devices web access networks listen"
+        12 -> "version blurttext computer access github apache license apk download"
         else -> ""
     }
     return blob.contains(q, ignoreCase = true)
@@ -264,6 +360,27 @@ private fun NoMatches() {
     Text("No matches", modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
+/** List rows use the card color. A filled row container made the page alternate black and grey. */
+@Composable
+private fun SettingsListItem(
+    headlineContent: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    overlineContent: (@Composable () -> Unit)? = null,
+    supportingContent: (@Composable () -> Unit)? = null,
+    leadingContent: (@Composable () -> Unit)? = null,
+    trailingContent: (@Composable () -> Unit)? = null,
+) {
+    ListItem(
+        headlineContent = headlineContent,
+        modifier = modifier,
+        overlineContent = overlineContent,
+        supportingContent = supportingContent,
+        leadingContent = leadingContent,
+        trailingContent = trailingContent,
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+    )
+}
+
 @Composable
 private fun SettingsGeneralPage(
     vm: MessagesViewModel,
@@ -275,10 +392,17 @@ private fun SettingsGeneralPage(
 ) {
     val page = "Settings"
     val rows = listOf(
-        visible(query, page, "LanMessaging", "Computer", "Wi-Fi", "Type on a computer"),
+        visible(query, page, "BlurtText", "Computer", "Wi-Fi", "Type on a computer"),
         visible(query, page, "Default SMS app", "Not the default SMS app", "New texts"),
         visible(query, page, "Search at the bottom", "search field"),
+        visible(query, page, "Group conversations", "Read and unread", "Received date", "SMS", "MMS", "Pinned"),
+        visible(query, page, "Delete old conversations", "Trash", "Pinned", "days"),
+        visible(query, page, "Older than", "Days", "duration"),
+        visible(query, page, "Delete trash", "Permanently deletes"),
+        visible(query, page, "In trash longer than", "stays in Trash"),
     )
+    var daysText by remember { mutableStateOf(settings.autoTrashDays.coerceIn(1, 3650).toString()) }
+    var trashDaysText by remember { mutableStateOf(settings.autoDeleteTrashDays.coerceIn(1, 3650).toString()) }
     if (rows.none { it }) {
         NoMatches()
         return
@@ -286,8 +410,8 @@ private fun SettingsGeneralPage(
     LazyColumn(Modifier.fillMaxSize()) {
         if (rows[0]) {
             item {
-                ListItem(
-                    headlineContent = { Text("LanMessaging") },
+                SettingsListItem(
+                    headlineContent = { Text("BlurtText") },
                     supportingContent = { Text("Type on a computer over your Wi-Fi. Nothing is uploaded.") },
                     leadingContent = { Icon(Icons.Filled.Computer, null) },
                     trailingContent = { TextButton(onClick = onOpenLanMessaging) { Text("Open") } },
@@ -296,7 +420,7 @@ private fun SettingsGeneralPage(
         }
         if (rows[1]) {
             item {
-                ListItem(
+                SettingsListItem(
                     headlineContent = { Text(if (isDefault) "Default SMS app" else "Not the default SMS app") },
                     supportingContent = { Text(if (isDefault) "New texts arrive here." else "Sending and new texts stay with the current default app.") },
                     trailingContent = {
@@ -307,7 +431,7 @@ private fun SettingsGeneralPage(
         }
         if (rows[2]) {
             item {
-                ListItem(
+                SettingsListItem(
                     headlineContent = { Text("Search at the bottom") },
                     supportingContent = { Text("Keeps the search field at the bottom of the screen.") },
                     trailingContent = {
@@ -316,6 +440,103 @@ private fun SettingsGeneralPage(
                         })
                     },
                 )
+            }
+        }
+        if (rows[3]) {
+            item {
+                InboxGroupPicker(inboxGroupMode(settings.inboxGroup)) { value ->
+                    vm.update { it.copy(inboxGroup = value) }
+                }
+            }
+        }
+        if (rows[4]) {
+            item {
+                SettingsListItem(
+                    headlineContent = { Text("Delete old conversations") },
+                    supportingContent = {
+                        Text("Moves a conversation to Trash when its newest message is older than the number of days below. Pinned conversations stay in the inbox.")
+                    },
+                    trailingContent = {
+                        AppSwitch(checked = settings.autoTrashEnabled, onCheckedChange = { checked ->
+                            vm.update { it.copy(autoTrashEnabled = checked) }
+                        })
+                    },
+                )
+            }
+        }
+        if (rows[5]) {
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text("Older than", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Number of days before a conversation moves to Trash.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    OutlinedTextField(
+                        value = daysText,
+                        onValueChange = { raw ->
+                            val digits = raw.filter { it.isDigit() }.take(4)
+                            daysText = digits
+                            val days = digits.toIntOrNull()
+                            if (days != null && days in 1..3650) vm.update { it.copy(autoTrashDays = days) }
+                        },
+                        modifier = Modifier.width(120.dp),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        suffix = { Text("days") },
+                    )
+                }
+            }
+        }
+        if (rows[6]) {
+            item {
+                SettingsListItem(
+                    headlineContent = { Text("Delete trash") },
+                    supportingContent = {
+                        Text("Permanently deletes a conversation after it has been in Trash longer than the number of days below.")
+                    },
+                    trailingContent = {
+                        AppSwitch(checked = settings.autoDeleteTrashEnabled, onCheckedChange = { checked ->
+                            vm.update { it.copy(autoDeleteTrashEnabled = checked) }
+                        })
+                    },
+                )
+            }
+        }
+        if (rows[7]) {
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text("In trash longer than", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Number of days a conversation stays in Trash.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    OutlinedTextField(
+                        value = trashDaysText,
+                        onValueChange = { raw ->
+                            val digits = raw.filter { it.isDigit() }.take(4)
+                            trashDaysText = digits
+                            val days = digits.toIntOrNull()
+                            if (days != null && days in 1..3650) vm.update { it.copy(autoDeleteTrashDays = days) }
+                        },
+                        modifier = Modifier.width(120.dp),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        suffix = { Text("days") },
+                    )
+                }
             }
         }
     }
@@ -327,8 +548,8 @@ private fun AppearancePage(vm: MessagesViewModel, settings: app.messages.data.Pe
     val paletteNames = ThemeChoices.joinToString(" ") { it.label }
     val rows = listOf(
         visible(query, page, "Theme", "System", "Light", "Dark"),
-        visible(query, page, "App icon", "Launcher", "Original", "Black", "Cyan", "Green", "White"),
         visible(query, page, "Color palette", paletteNames),
+        visible(query, page, "App icon", "Launcher", "Original", "Black", "Cyan", "Green", "White"),
         visible(query, page, "Dynamic color", "Wallpaper"),
         visible(query, page, "Alternating threads", "Shade every other"),
         visible(query, page, "Text size", "Small", "Normal", "Large", "Extra large"),
@@ -347,21 +568,21 @@ private fun AppearancePage(vm: MessagesViewModel, settings: app.messages.data.Pe
         }
         if (rows[1]) {
             item {
-                AppIconPicker(settings.launcherIcon) { id ->
-                    vm.update { it.copy(launcherIcon = id) }
-                }
-            }
-        }
-        if (rows[2]) {
-            item {
                 ThemePalettePicker(settings) { id ->
                     vm.update { it.copy(palette = id, dynamicColor = false) }
                 }
             }
         }
+        if (rows[2]) {
+            item {
+                AppIconPicker(settings.launcherIcon) { id ->
+                    vm.update { it.copy(launcherIcon = id) }
+                }
+            }
+        }
         if (rows[3]) {
             item {
-                ListItem(
+                SettingsListItem(
                     headlineContent = { Text("Dynamic color") },
                     supportingContent = { Text("Wallpaper colors. Choosing a theme above turns this off.") },
                     trailingContent = {
@@ -374,7 +595,7 @@ private fun AppearancePage(vm: MessagesViewModel, settings: app.messages.data.Pe
         }
         if (rows[4]) {
             item {
-                ListItem(
+                SettingsListItem(
                     headlineContent = { Text("Alternating threads") },
                     supportingContent = { Text("Shade every other conversation so the rows are easier to separate.") },
                     trailingContent = {
@@ -420,7 +641,7 @@ private fun SendingPage(
     LazyColumn(Modifier.fillMaxSize()) {
         if (rows[0]) {
             item {
-                ListItem(
+                SettingsListItem(
                     headlineContent = { Text("Enter key sends") },
                     supportingContent = { Text("Shift+Enter still adds a line. The keyboard send button always sends.") },
                     trailingContent = {
@@ -433,7 +654,7 @@ private fun SendingPage(
         }
         if (rows[1]) {
             item {
-                ListItem(
+                SettingsListItem(
                     headlineContent = { Text("Delivery reports") },
                     supportingContent = { Text("Ask the carrier when a text arrives. Not every carrier answers.") },
                     trailingContent = {
@@ -446,7 +667,7 @@ private fun SendingPage(
         }
         if (rows[2]) {
             item {
-                ListItem(
+                SettingsListItem(
                     headlineContent = { Text("Exact alarms for scheduled texts") },
                     supportingContent = { Text(if (exact) "Scheduled texts can send on time." else "Allow alarms so a scheduled text is not late.") },
                     trailingContent = {
@@ -484,7 +705,7 @@ private fun CarrierPage(vm: MessagesViewModel, settings: app.messages.data.Persi
         if (rows[0]) {
             item {
                 if (sims.isEmpty()) {
-                    ListItem(
+                    SettingsListItem(
                         headlineContent = { Text("No active SIM") },
                         supportingContent = { Text("No SIM cards are active.") },
                     )
@@ -514,7 +735,7 @@ private fun CarrierPage(vm: MessagesViewModel, settings: app.messages.data.Persi
         }
         if (rows[1]) {
             item {
-                ListItem(
+                SettingsListItem(
                     headlineContent = { Text("Show a SIM indicator") },
                     supportingContent = { Text("Shows the SIM on each message.") },
                     trailingContent = {
@@ -549,7 +770,7 @@ private fun CarrierPage(vm: MessagesViewModel, settings: app.messages.data.Persi
 
 @Composable
 private fun DetailAppSwitch(label: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
-    ListItem(
+    SettingsListItem(
         headlineContent = { Text(label) },
         trailingContent = {
             AppSwitch(
@@ -570,7 +791,7 @@ private fun NotificationsPage(vm: MessagesViewModel, settings: app.messages.data
     }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            ListItem(
+            SettingsListItem(
                 headlineContent = { Text("Show message text") },
                 supportingContent = { Text("Turn off to hide the sender and the message on the lock screen notification.") },
                 trailingContent = {
@@ -685,7 +906,7 @@ private fun BackupPage(
     LazyColumn(Modifier.fillMaxSize()) {
         if (rows[0]) {
             item {
-                ListItem(
+                SettingsListItem(
                     headlineContent = { Text("Export texts") },
                     supportingContent = { Text("A JSON file of texts. Picture files are not included.") },
                     trailingContent = {
@@ -709,7 +930,7 @@ private fun BackupPage(
         }
         if (rows[1]) {
             item {
-                ListItem(
+                SettingsListItem(
                     headlineContent = { Text("Import texts") },
                     supportingContent = { Text("Adds texts from a backup made by this app. Matching texts are skipped.") },
                     trailingContent = {
@@ -721,47 +942,179 @@ private fun BackupPage(
     }
 }
 
+private val swipeChoices = listOf(
+    "unread" to "Mark as read/unread",
+    "delete" to "Delete",
+    "none" to "None",
+)
+
+private fun swipeActionLabel(action: String): String = swipeChoices.firstOrNull { it.first == action }?.second ?: "None"
+
 @Composable
 private fun SwipePage(vm: MessagesViewModel, settings: app.messages.data.Persisted, query: String) {
     val page = "Swipe"
     val rows = listOf(
-        visible(query, page, "left side", "right side", "swipe a thread"),
-        visible(query, page, "Left side", "Unread", "Delete", "None"),
-        visible(query, page, "Right side", "Unread", "Delete", "None"),
+        visible(query, page, "right swipe", "left swipe", "change", "mark as read"),
+        visible(query, page, "Right swipe", "Delete", "Mark as read/unread", "None"),
+        visible(query, page, "Left swipe", "Delete", "Mark as read/unread", "None"),
     )
     if (rows.none { it }) {
         NoMatches()
         return
     }
+    var picking by remember { mutableStateOf<String?>(null) }
+    val startAction = swipeAction(settings.swipeStart, "delete")
+    val endAction = swipeAction(settings.swipeEnd, "unread")
     LazyColumn(Modifier.fillMaxSize()) {
-        if (rows[0]) {
-            item {
+        item {
+            Text(
+                "A delete moves it to Trash and can be undone.",
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        item {
+            SwipeActionCard("Right swipe", startAction, revealOnLeft = true) { picking = "start" }
+        }
+        item {
+            SwipeActionCard("Left swipe", endAction, revealOnLeft = false) { picking = "end" }
+        }
+    }
+    val which = picking
+    if (which != null) {
+        val start = which == "start"
+        val current = if (start) startAction else endAction
+        AlertDialog(
+            onDismissRequest = { picking = null },
+            title = { Text(if (start) "Right swipe" else "Left swipe") },
+            text = {
+                Column {
+                    swipeChoices.forEach { (value, label) ->
+                        TextButton(
+                            onClick = {
+                                vm.update { saved ->
+                                    if (start) saved.copy(swipeStart = value) else saved.copy(swipeEnd = value)
+                                }
+                                picking = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(if (value == current) "● $label" else label, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { picking = null }) { Text("Close") }
+            },
+        )
+    }
+}
+
+@Composable
+private fun SwipeActionCard(title: String, action: String, revealOnLeft: Boolean, onChange: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
                 Text(
-                    "The left side appears when you swipe a thread to the right. The right side appears when you swipe it to the left. A delete can be undone.",
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    swipeActionLabel(action),
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
-        if (rows[1]) {
-            item {
-                Choice(
-                    "Left side",
-                    listOf("unread" to "Unread", "delete" to "Delete", "none" to "None"),
-                    swipeAction(settings.swipeStart, "unread"),
-                ) { value ->
-                    vm.update { it.copy(swipeStart = value) }
-                }
+            TextButton(onClick = onChange) {
+                Text("Change", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             }
         }
-        if (rows[2]) {
-            item {
-                Choice(
-                    "Right side",
-                    listOf("unread" to "Unread", "delete" to "Delete", "none" to "None"),
-                    swipeAction(settings.swipeEnd, "delete"),
-                ) { value ->
-                    vm.update { it.copy(swipeEnd = value) }
+        SwipePreviewGraphic(action, revealOnLeft)
+    }
+}
+
+private val SwipeDeletePreview = Color(0xFFE46962)
+private val SwipeUnreadPreview = Color(0xFF1A73E8)
+
+@Composable
+private fun SwipePreviewGraphic(action: String, revealOnLeft: Boolean) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(76.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (revealOnLeft) SwipePreviewBlock(action)
+        SwipePreviewSketch(Modifier.weight(1f))
+        if (!revealOnLeft) SwipePreviewBlock(action)
+    }
+}
+
+@Composable
+private fun SwipePreviewBlock(action: String) {
+    if (action == "none") return
+    val delete = action == "delete"
+    Box(
+        Modifier
+            .width(84.dp)
+            .height(76.dp)
+            .background(if (delete) SwipeDeletePreview else SwipeUnreadPreview),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (delete) Icons.Filled.Delete else Icons.Filled.MarkEmailUnread,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(26.dp),
+        )
+    }
+}
+
+@Composable
+private fun SwipePreviewSketch(modifier: Modifier) {
+    val bar = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+    Row(modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(bar),
+        )
+        Column(Modifier.padding(start = 12.dp)) {
+            Box(Modifier.width(108.dp).height(8.dp).clip(RoundedCornerShape(4.dp)).background(bar))
+            Box(
+                Modifier
+                    .padding(top = 8.dp)
+                    .width(72.dp)
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(bar),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun InboxGroupPicker(selected: String, onSelect: (String) -> Unit) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text("Group conversations", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Headings in the inbox. Search stays one list.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            listOf(
+                "none" to "None",
+                "read" to "Read and unread",
+                "date" to "Received date",
+                "type" to "SMS and MMS",
+                "pinned" to "Pinned",
+            ).forEach { (value, label) ->
+                TextButton(onClick = { onSelect(value) }) {
+                    Text(if (selected == value) "● $label" else label)
                 }
             }
         }
@@ -778,9 +1131,7 @@ private fun AboutPage(query: String) {
     if (!visible(
             query,
             "About",
-            "lMessages",
-            "LanMessaging",
-            "LanText",
+            "BlurtText",
             BuildConfig.VERSION_NAME,
             "GitHub",
             "Apache",
@@ -807,41 +1158,41 @@ private fun AboutPage(query: String) {
     }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            ListItem(
+            SettingsListItem(
                 headlineContent = { Text("About") },
                 supportingContent = {
-                    Text("lMessages ${BuildConfig.VERSION_NAME}. Computer access is LanMessaging, included in this app.")
+                    Text("BlurtText ${BuildConfig.VERSION_NAME}. Type on a computer over Wi-Fi from this phone.")
                 },
             )
         }
         item {
-            ListItem(
+            SettingsListItem(
                 headlineContent = { Text("GitHub") },
-                supportingContent = { Text("github.com/crome1394/lMessages") },
+                supportingContent = { Text("https://github.com/crome1394/BlurtText") },
                 leadingContent = {
                     Icon(painterResource(app.messages.R.drawable.ic_git), contentDescription = "Git")
                 },
                 modifier = Modifier.clickable {
                     context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/crome1394/lMessages")),
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/crome1394/BlurtText")),
                     )
                 },
             )
         }
         item {
-            ListItem(
+            SettingsListItem(
                 headlineContent = { Text("License") },
                 supportingContent = { Text("Apache License 2.0") },
                 modifier = Modifier.clickable { showLicense = true },
             )
         }
         item {
-            ListItem(
+            SettingsListItem(
                 headlineContent = { Text("Test APK") },
                 supportingContent = { Text("Download the latest build from GitHub") },
                 modifier = Modifier.clickable {
                     context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/crome1394/lMessages/releases/latest")),
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/crome1394/BlurtText/releases/latest")),
                     )
                 },
             )
@@ -877,7 +1228,7 @@ private fun RibbonPage(vm: MessagesViewModel, settings: app.messages.data.Persis
                 vm.update { it.copy(ribbonTopAt = value.toInt()) }
             }
             Text(
-                "Press and hold a row, then drag to change the order.",
+                "Drag the handle to change the order.",
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -898,7 +1249,7 @@ private fun RibbonPage(vm: MessagesViewModel, settings: app.messages.data.Persis
         } else {
             LazyColumn(Modifier.weight(1f)) {
                 items(visibleActions, key = { it.id }) { item ->
-                    ListItem(
+                    SettingsListItem(
                         leadingContent = { RibbonRowIcon(item.id) },
                         headlineContent = { Text(ribbonLabel(item.id)) },
                         trailingContent = {
@@ -964,7 +1315,7 @@ private fun FooterPage(vm: MessagesViewModel, settings: app.messages.data.Persis
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
             Text(
-                "Press and hold a row, then drag to change the order.",
+                "Drag the handle to change the order.",
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -985,7 +1336,7 @@ private fun FooterPage(vm: MessagesViewModel, settings: app.messages.data.Persis
         } else {
             LazyColumn(Modifier.weight(1f)) {
                 items(visibleActions, key = { it.id }) { item ->
-                    ListItem(
+                    SettingsListItem(
                         leadingContent = { FooterRowIcon(item.id) },
                         headlineContent = { Text(footerLabel(item.id)) },
                         trailingContent = {
@@ -1015,6 +1366,7 @@ private fun FooterRowIcon(id: String) {
             contentDescription = null,
             tint = Color.Unspecified,
         )
+        "trash" -> Icon(Icons.Filled.Delete, contentDescription = null)
     }
 }
 
@@ -1135,7 +1487,7 @@ private fun AppIconPicker(selectedId: String, onPick: (String) -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
         Text("App icon", style = MaterialTheme.typography.titleSmall)
         Text(
-            "Launcher icon. The original green bubble stays until you pick another.",
+            "Launcher icon. Cyan is used until you pick another.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

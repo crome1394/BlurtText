@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) needed += Manifest.permission.POST_NOTIFICATIONS
         needed += Manifest.permission.READ_CONTACTS
         needed += Manifest.permission.READ_PHONE_STATE
+        needed += Manifest.permission.READ_PHONE_NUMBERS
         needed += Manifest.permission.READ_SMS
         needed += Manifest.permission.SEND_SMS
         needed += Manifest.permission.RECEIVE_SMS

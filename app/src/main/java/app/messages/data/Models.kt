@@ -13,6 +13,7 @@ data class Conversation(
     val pinned: Boolean,
     val draft: String,
     val photoUri: String?,
+    val latestMms: Boolean = false,
 )
 
 data class PartRef(

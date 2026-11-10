@@ -17,8 +17,12 @@ import app.messages.data.Persisted
 import app.messages.data.ScheduledMessage
 import app.messages.data.SearchHit
 import app.messages.data.SimLine
+import app.messages.data.TrashedConversation
+import app.messages.data.TrashedThread
 import app.messages.data.draftKey
 import app.messages.data.keywordsFrom
+import app.messages.data.reconcileTrash
+import app.messages.data.trashDueForDeletion
 import app.messages.sms.ActiveThread
 import app.messages.sms.MessageNotifier
 import app.messages.sms.ScheduleController
@@ -55,6 +59,7 @@ sealed interface Screen {
     data object Archive : Screen
     data object Blocked : Screen
     data object Scheduled : Screen
+    data object Trash : Screen
 }
 
 class MessagesViewModel(app: Application) : AndroidViewModel(app) {
@@ -65,6 +70,10 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
 
     val snackbar = SnackbarHostState()
     val screen = MutableStateFlow<Screen>(Screen.Inbox)
+    /** Screen sitting under a settings or new-message card. Matches [screen] when both are closed. */
+    val screenUnder = MutableStateFlow<Screen>(Screen.Inbox)
+    /** New-message card. Stays set while settings is opened on top of it. */
+    val composeOverlay = MutableStateFlow<Screen.ComposeNew?>(null)
     var pendingSettingsTab: Int = 0
         private set
     private var settingsTabToken = 0
@@ -87,22 +96,44 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
 
     private val hidden = MutableStateFlow<Set<Long>>(emptySet())
 
-    val inbox: StateFlow<List<Conversation>> = combine(repo.conversations, hidden) { all, hide ->
-        all.filter { !it.archived && it.threadId !in hide }
+    val inbox: StateFlow<List<Conversation>> = combine(repo.conversations, hidden, settings) { all, hide, state ->
+        val trashed = state.trash.map { it.threadId }.toSet()
+        all.filter { !it.archived && it.threadId !in hide && it.threadId !in trashed }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val archived: StateFlow<List<Conversation>> = repo.conversations
-        .map { list -> list.filter { it.archived } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val archived: StateFlow<List<Conversation>> = combine(repo.conversations, settings) { list, state ->
+        val trashed = state.trash.map { it.threadId }.toSet()
+        list.filter { it.archived && it.threadId !in trashed }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val results: StateFlow<List<SearchHit>> = query.debounce(150).map { raw ->
+    val trashed: StateFlow<List<TrashedConversation>> = combine(repo.conversations, settings) { list, state ->
+        val byId = list.associateBy { it.threadId }
+        state.trash.mapNotNull { entry ->
+            byId[entry.threadId]?.let { TrashedConversation(it, entry.trashedAt) }
+        }.sortedByDescending { it.trashedAt }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val results: StateFlow<List<SearchHit>> = combine(query.debounce(150), settings) { raw, state ->
+        raw to state.trash.map { it.threadId }.toSet()
+    }.map { (raw, trashedIds) ->
         val q = raw.trim()
-        if (q.length < 2) emptyList() else withContext(Dispatchers.IO) { repo.search(q) }
+        if (q.length < 2) emptyList() else withContext(Dispatchers.IO) {
+            repo.search(q).filter { it.threadId !in trashedIds }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val suggestions: StateFlow<List<ContactHit>> = recipientQuery.debounce(120).map { raw ->
         if (raw.isBlank()) emptyList() else withContext(Dispatchers.IO) { repo.suggest(raw) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    init {
+        viewModelScope.launch {
+            combine(repo.conversations, settings) { _, _ -> Unit }.collect {
+                sweepTrash()
+                purgeExpiredTrash()
+            }
+        }
+    }
 
     fun systemSmsSub(): Int = repo.defaultSmsSubscription()
 
@@ -119,8 +150,7 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
     fun pop() {
         if (stack.size <= 1) return
         stack.removeLast()
-        screen.value = stack.last()
-        canPop.value = stack.size > 1
+        publish()
         selection.value = emptySet()
         if (stack.last() !is Screen.Thread) ActiveThread.id = -1L
     }
@@ -138,8 +168,7 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
     fun showInbox() {
         stack.clear()
         stack.add(Screen.Inbox)
-        screen.value = Screen.Inbox
-        canPop.value = false
+        publish()
         selection.value = emptySet()
         ActiveThread.id = -1L
     }
@@ -148,8 +177,7 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
         stack.clear()
         stack.add(Screen.Inbox)
         stack.add(Screen.Thread(threadId))
-        screen.value = stack.last()
-        canPop.value = true
+        publish()
         selection.value = emptySet()
     }
 
@@ -164,12 +192,42 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
         if (stack.last() !is Screen.Settings) push(Screen.Settings)
     }
 
+    fun closeSettings() {
+        if (stack.lastOrNull() is Screen.Settings) pop()
+    }
+
     fun takeSettingsTab(): Int? {
         if (consumedSettingsTabToken == settingsTabToken) return null
         consumedSettingsTabToken = settingsTabToken
         return pendingSettingsTab
     }
     fun showArchive() = push(Screen.Archive)
+
+    fun showTrash() = push(Screen.Trash)
+
+    fun openTrashedThread(threadId: Long) = push(Screen.Thread(threadId))
+
+    fun restoreTrash(ids: Set<Long>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            local.update { state -> state.copy(trash = state.trash.filter { it.threadId !in ids }) }
+            hidden.value = hidden.value - ids
+            snackbar.showSnackbar(if (ids.size == 1) "Restored" else "${ids.size} conversations restored")
+        }
+    }
+
+    fun deleteFromTrash(ids: Set<Long>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { repo.deleteThreads(ids) }
+                local.update { state -> state.copy(trash = state.trash.filter { it.threadId !in ids }) }
+                hidden.value = hidden.value - ids
+            } catch (t: Throwable) {
+                snackbar.showSnackbar(t.message ?: "Could not delete")
+            }
+        }
+    }
     fun showBlocked() {
         refreshBlocked()
         push(Screen.Blocked)
@@ -247,6 +305,73 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearActiveThread() {
         ActiveThread.id = -1L
+        sweepTrash()
+    }
+
+    private fun sweepTrash() {
+        val state = local.snapshot
+        val conversations = repo.conversations.value
+        val next = reconcileTrash(
+            conversations = conversations,
+            trash = state.trash,
+            autoEnabled = state.autoTrashEnabled,
+            days = state.autoTrashDays,
+            now = System.currentTimeMillis(),
+            openThreadId = ActiveThread.id,
+            pinned = state.pins.toSet(),
+        )
+        if (next == state.trash) return
+        viewModelScope.launch {
+            local.update { current ->
+                val resolved = reconcileTrash(
+                    conversations = repo.conversations.value,
+                    trash = current.trash,
+                    autoEnabled = current.autoTrashEnabled,
+                    days = current.autoTrashDays,
+                    now = System.currentTimeMillis(),
+                    openThreadId = ActiveThread.id,
+                    pinned = current.pins.toSet(),
+                )
+                if (resolved == current.trash) current else current.copy(trash = resolved)
+            }
+        }
+    }
+
+    private var purgingTrash = false
+
+    private fun purgeExpiredTrash() {
+        if (purgingTrash) return
+        val state = local.snapshot
+        val due = trashDueForDeletion(
+            trash = state.trash,
+            enabled = state.autoDeleteTrashEnabled,
+            days = state.autoDeleteTrashDays,
+            now = System.currentTimeMillis(),
+            openThreadId = ActiveThread.id,
+        )
+        if (due.isEmpty()) return
+        purgingTrash = true
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { repo.deleteThreads(due) }
+                local.update { current ->
+                    val still = trashDueForDeletion(
+                        trash = current.trash,
+                        enabled = current.autoDeleteTrashEnabled,
+                        days = current.autoDeleteTrashDays,
+                        now = System.currentTimeMillis(),
+                        openThreadId = ActiveThread.id,
+                    )
+                    val drop = due.intersect(still)
+                    if (drop.isEmpty()) current else current.copy(trash = current.trash.filter { it.threadId !in drop })
+                }
+                hidden.value = hidden.value - due
+            } catch (t: Throwable) {
+                snackbar.showSnackbar(t.message ?: "Could not delete old trash")
+            } finally {
+                purgingTrash = false
+            }
+        }
     }
 
     fun toggleSelect(id: Long) {
@@ -390,15 +515,17 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun send(addresses: List<String>, body: String, attachmentPath: String?, subId: Int?) {
+    fun send(addresses: List<String>, body: String, attachmentPath: String?, subId: Int?, threadId: Long = -1L) {
         if (sending.value) return
         viewModelScope.launch {
             sending.value = true
             try {
-                val threadId = withContext(Dispatchers.IO) {
-                    repo.send(addresses, body, attachmentPath, subId)
+                val sentThread = withContext(Dispatchers.IO) {
+                    val known = if (threadId > 0) repo.addressesFor(threadId) else emptyList()
+                    val dest = if (known.size > addresses.size) known else addresses
+                    repo.send(dest, body, attachmentPath, subId)
                 }
-                val keys = listOf(draftKey(threadId), draftKey(addresses))
+                val keys = listOf(draftKey(sentThread), draftKey(addresses))
                 keys.forEach { key ->
                     composerTouched += key
                     composerText[key] = ""
@@ -411,7 +538,7 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 if (attachmentPath != null) withContext(Dispatchers.IO) { repo.releaseAttachment(attachmentPath) }
-                showThread(threadId)
+                showThread(sentThread)
             } catch (t: Throwable) {
                 snackbar.showSnackbar(t.message ?: "Could not send")
             } finally {
@@ -420,14 +547,35 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Sends a tapback and leaves the reply draft alone. */
+    fun react(addresses: List<String>, body: String, subId: Int?, threadId: Long) {
+        if (body.isBlank() || addresses.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val known = if (threadId > 0) repo.addressesFor(threadId) else emptyList()
+                    val dest = if (known.size > addresses.size) known else addresses
+                    if (dest.isEmpty()) error("No recipients on this conversation")
+                    repo.send(dest, body, null, subId)
+                }
+            } catch (t: Throwable) {
+                snackbar.showSnackbar(t.message ?: "Could not send")
+            }
+        }
+    }
+
     fun retry(message: ChatMessage) {
         val address = message.address
-        if (address.isBlank()) return
+        if (address.isBlank() && message.threadId <= 0) return
         viewModelScope.launch {
             sending.value = true
             try {
                 withContext(Dispatchers.IO) {
-                    repo.send(listOf(address), message.body, null, message.subId.takeIf { it >= 0 })
+                    val targets = repo.addressesFor(message.threadId).ifEmpty {
+                        listOf(address).filter { it.isNotBlank() }
+                    }
+                    if (targets.isEmpty()) return@withContext
+                    repo.send(targets, message.body, null, message.subId.takeIf { it >= 0 })
                     repo.deleteMessage(message)
                 }
             } catch (t: Throwable) {
@@ -543,20 +691,23 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
         hidden.value = hidden.value + ids
         selection.value = emptySet()
         viewModelScope.launch {
-            val result = snackbar.showSnackbar(
-                message = if (ids.size == 1) "Conversation deleted" else "${ids.size} conversations deleted",
-                actionLabel = "Undo",
-                duration = SnackbarDuration.Long,
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                hidden.value = hidden.value - ids
-            } else {
-                try {
-                    withContext(Dispatchers.IO) { repo.deleteThreads(ids) }
-                } catch (t: Throwable) {
-                    hidden.value = hidden.value - ids
-                    snackbar.showSnackbar(t.message ?: "Could not delete")
+            try {
+                val now = System.currentTimeMillis()
+                local.update { state ->
+                    val kept = state.trash.filter { it.threadId !in ids }
+                    state.copy(trash = kept + ids.map { TrashedThread(it, now) })
                 }
+                val result = snackbar.showSnackbar(
+                    message = if (ids.size == 1) "Moved to Trash" else "${ids.size} conversations moved to Trash",
+                    actionLabel = "Undo",
+                    duration = SnackbarDuration.Long,
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    local.update { state -> state.copy(trash = state.trash.filter { it.threadId !in ids }) }
+                }
+            } catch (t: Throwable) {
+                snackbar.showSnackbar(t.message ?: "Could not move that conversation to Trash")
+            } finally {
                 hidden.value = hidden.value - ids
             }
         }
@@ -574,8 +725,25 @@ class MessagesViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun push(next: Screen) {
         if (stack.lastOrNull() != next) stack.addLast(next)
-        screen.value = stack.last()
-        canPop.value = stack.size > 1
+        publish()
         selection.value = emptySet()
+    }
+
+    private fun publish() {
+        val top = stack.last()
+        screen.value = top
+        canPop.value = stack.size > 1
+        val cardOnTop = top is Screen.Settings || top is Screen.ComposeNew
+        screenUnder.value = if (cardOnTop) screenBelowCards() else top
+        composeOverlay.value = stack.lastOrNull { it is Screen.ComposeNew } as? Screen.ComposeNew
+    }
+
+    private fun screenBelowCards(): Screen {
+        val below = stack.descendingIterator()
+        while (below.hasNext()) {
+            val item = below.next()
+            if (item !is Screen.Settings && item !is Screen.ComposeNew) return item
+        }
+        return Screen.Inbox
     }
 }

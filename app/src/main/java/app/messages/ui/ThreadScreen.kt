@@ -18,9 +18,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import app.messages.data.MessageLinks
@@ -30,10 +32,19 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -62,6 +73,7 @@ import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
@@ -90,21 +102,26 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -113,12 +130,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -131,6 +151,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -151,11 +172,18 @@ import app.messages.data.mimeForPath
 import app.messages.data.preferredSub
 import app.messages.data.simCaption
 import app.messages.data.simDetail
+import app.messages.sms.BubbleReaction
 import app.messages.sms.KlipyGifs
+import app.messages.sms.TapbackSymbol
+import app.messages.sms.reactionDescription
+import app.messages.sms.reactionLayout
+import app.messages.sms.tapbackBody
+import app.messages.sms.tapbackSymbols
 import app.messages.data.formatFullStamp
 import app.messages.data.formatMessageStamp
 import app.messages.data.formatTimestamp
 import app.messages.data.sameRecipients
+import app.messages.data.schedulePickerSeed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -190,7 +218,7 @@ fun ThreadScreen(vm: MessagesViewModel, threadId: Long) {
     val scheduled = settings.scheduled.filter { sameRecipients(it.addresses, addresses) }
     val listState = rememberLazyListState()
     val ascending = remember(messages) {
-        app.lantext.sms.orderEchoes(
+        val ordered = app.lantext.sms.orderEchoes(
             messages,
             { it.key },
             { it.threadId.toString() },
@@ -198,6 +226,10 @@ fun ThreadScreen(vm: MessagesViewModel, threadId: Long) {
             { it.timestamp },
             { it.incoming },
         )
+        val reactions = reactionLayout(ordered)
+        ordered.filter { it.key !in reactions.hiddenKeys }.map { message ->
+            message to reactions.byKey[message.key].orEmpty()
+        }
     }
     var stickToBottom by remember(threadId) { mutableStateOf(true) }
     var chooseNumber by remember { mutableStateOf<String?>(null) }
@@ -288,31 +320,48 @@ fun ThreadScreen(vm: MessagesViewModel, threadId: Long) {
         text = ""
         attachment = null
         stickToBottom = true
-        vm.send(addresses, body, path, activeSub)
+        vm.send(addresses, body, path, activeSub, threadId)
     }
 
+    val threadTitle = conversation?.title ?: addresses.joinToString().ifBlank { "Conversation" }
+    val dial = addresses.firstOrNull().orEmpty()
+    var contactCard by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var contactGroup by remember { mutableStateOf(false) }
+    fun showContact(number: String, title: String) {
+        scope.launch {
+            val uri = withContext(Dispatchers.IO) { vm.contactUri(number) }
+            val opened = uri != null && runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }.isSuccess
+            if (!opened) contactCard = title.ifBlank { number } to number
+        }
+    }
+    fun openThreadContact() {
+        val numbers = addresses.filter { it.isNotBlank() }
+        when {
+            numbers.size > 1 -> contactGroup = true
+            numbers.size == 1 -> showContact(numbers.first(), threadTitle)
+            else -> vm.note("This conversation has no phone number")
+        }
+    }
+    val page = MaterialTheme.colorScheme.mailCanvas()
+    val ink = MaterialTheme.colorScheme.mailInk()
     Scaffold(
         modifier = Modifier.imePadding(),
+        containerColor = page,
+        contentColor = ink,
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text(conversation?.title ?: addresses.joinToString().ifBlank { "Conversation" }, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (addresses.size > 1) {
-                            Text(addresses.joinToString(), style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = page,
+                    scrolledContainerColor = page,
+                    navigationIconContentColor = ink,
+                    titleContentColor = ink,
+                    actionIconContentColor = ink,
+                ),
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = vm::pop) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
                 actions = {
-                    val dial = addresses.firstOrNull().orEmpty()
-                    if (dial.isNotBlank() && !dial.contains('@')) {
-                        IconButton(onClick = {
-                            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$dial")))
-                        }) { Icon(Icons.Filled.Call, "Call") }
-                    }
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text(if (conversation?.pinned == true) "Unpin" else "Pin") }, onClick = {
@@ -423,6 +472,29 @@ fun ThreadScreen(vm: MessagesViewModel, threadId: Long) {
                         if (editingId == item.id) editingId = null
                     },
                 )
+                Row(
+                    Modifier.fillMaxWidth().padding(end = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = {
+                        vm.archive(setOf(threadId), true)
+                        vm.pop()
+                    }) { Icon(Icons.Filled.Archive, "Archive") }
+                    IconButton(onClick = {
+                        vm.swipeDelete(threadId)
+                        vm.pop()
+                    }) { Icon(Icons.Filled.Delete, "Delete") }
+                    IconButton(onClick = {
+                        vm.markUnread(setOf(threadId))
+                        vm.pop()
+                    }) { Icon(Icons.Filled.MarkEmailUnread, "Mark unread") }
+                    if (dial.isNotBlank() && !dial.contains('@')) {
+                        IconButton(onClick = {
+                            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$dial")))
+                        }) { Icon(Icons.Filled.Call, "Call") }
+                    }
+                }
                 Composer(
                     text = text,
                     onText = { text = it },
@@ -467,14 +539,53 @@ fun ThreadScreen(vm: MessagesViewModel, threadId: Long) {
             }
         },
     ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = ::openThreadContact)
+                .semantics { contentDescription = "Contact details" }
+                .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 4.dp),
+        ) {
+            Text(
+                threadTitle,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = ink,
+            )
+            if (addresses.isNotEmpty()) {
+                Text(
+                    addresses.joinToString(),
+                    modifier = Modifier.padding(top = 2.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Surface(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.mailCard(),
+            contentColor = ink,
+            tonalElevation = 0.dp,
+            shadowElevation = 12.dp,
+        ) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            itemsIndexed(ascending, key = { _, message -> message.key }) { index, message ->
-                val previous = ascending.getOrNull(index - 1)
+            itemsIndexed(ascending, key = { _, row -> row.first.key }) { index, row ->
+                val message = row.first
+                val reactions = row.second
+                val previous = ascending.getOrNull(index - 1)?.first
                 if (previous == null || message.timestamp - previous.timestamp > 30 * 60 * 1000) {
                     Text(
                         formatMessageStamp(message.timestamp),
@@ -499,6 +610,7 @@ fun ThreadScreen(vm: MessagesViewModel, threadId: Long) {
                 val indicator = if (settings.showSimIndicator) simCaption(message.subId, sims) else ""
                 MessageBubble(
                     message = message,
+                    reactions = reactions,
                     group = addresses.size > 1,
                     indicator = indicator,
                     caption = caption,
@@ -519,14 +631,26 @@ fun ThreadScreen(vm: MessagesViewModel, threadId: Long) {
                 )
             }
         }
+        }
+        }
     }
 
     selected?.let { message ->
+        val marks = ascending.firstOrNull { it.first.key == message.key }?.second.orEmpty()
         AlertDialog(
             onDismissRequest = { selected = null },
             title = { Text(if (message.incoming) message.senderName else "You") },
             text = {
                 Column {
+                    TapbackRow(marks) { symbol, remove ->
+                        val body = tapbackBody(message, symbol, remove)
+                        selected = null
+                        when {
+                            body == null -> vm.note("Nothing to react to")
+                            addresses.isEmpty() -> vm.note("No recipients on this conversation")
+                            else -> vm.react(addresses, body, activeSub, threadId)
+                        }
+                    }
                     Text(formatFullStamp(message.timestamp))
                     if (message.status.isNotBlank()) Text(message.status)
                     if (message.address.isNotBlank()) Text(message.address, style = MaterialTheme.typography.bodySmall)
@@ -572,15 +696,64 @@ fun ThreadScreen(vm: MessagesViewModel, threadId: Long) {
                         selected = null
                     }) { Icon(Icons.Filled.Share, "Share") }
                     IconButton(onClick = {
-                        vm.showCompose(body = message.body)
-                        selected = null
-                    }) { Icon(Icons.Filled.Share, "Forward") }
-                    IconButton(onClick = {
                         vm.deleteMessage(message)
                         selected = null
                     }) { Icon(Icons.Filled.Delete, "Delete") }
                 }
             },
+        )
+    }
+
+    contactCard?.let { (title, number) ->
+        AlertDialog(
+            onDismissRequest = { contactCard = null },
+            title = { Text(title.ifBlank { "Contact" }) },
+            text = {
+                Column {
+                    if (number.isNotBlank()) Text(number)
+                    if (number.isNotBlank()) {
+                        TextButton(onClick = {
+                            contactCard = null
+                            context.startActivity(
+                                Intent(ContactsContract.Intents.Insert.ACTION).apply {
+                                    type = ContactsContract.RawContacts.CONTENT_TYPE
+                                    putExtra(ContactsContract.Intents.Insert.PHONE, number)
+                                },
+                            )
+                        }) { Text("Add contact") }
+                        TextButton(onClick = {
+                            contactCard = null
+                            chooseNumber = number
+                            val granted = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.WRITE_CONTACTS,
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (granted) pickContact.launch(null) else writeContacts.launch(Manifest.permission.WRITE_CONTACTS)
+                        }) { Text("Choose a contact") }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { contactCard = null }) { Text("Close") } },
+        )
+    }
+    if (contactGroup) {
+        AlertDialog(
+            onDismissRequest = { contactGroup = false },
+            title = { Text(threadTitle) },
+            text = {
+                Column {
+                    addresses.filter { it.isNotBlank() }.forEach { number ->
+                        TextButton(
+                            onClick = {
+                                contactGroup = false
+                                showContact(number, number)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(number) }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { contactGroup = false }) { Text("Close") } },
         )
     }
 
@@ -730,16 +903,117 @@ fun ComposeScreen(vm: MessagesViewModel, initialAddresses: List<String>, initial
         attachment = null
         vm.send(addresses, body, path, activeSub)
     }
-    Scaffold(
-        modifier = Modifier.imePadding(),
-        topBar = {
-            TopAppBar(
-                title = { Text("New message") },
-                navigationIcon = { IconButton(onClick = vm::pop) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-            )
-        },
-        bottomBar = {
-            Column {
+    val fraction = rememberSaveable { mutableStateOf(SETTINGS_CARD_START) }
+    BoxWithConstraints(
+        Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+    ) {
+        val spanPx = with(LocalDensity.current) { maxHeight.toPx() }
+        val cap = maxHeight * SETTINGS_CARD_MAX
+        val floor = if (280.dp < cap) 280.dp else cap
+        val cardHeight = (maxHeight * fraction.value).coerceIn(floor, cap)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(cardHeight)
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            awaitPointerEvent()
+                        }
+                    }
+                },
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 6.dp,
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .dragToResize(spanPx, fraction)
+                        .padding(top = 10.dp, bottom = 4.dp)
+                        .semantics { contentDescription = "Drag to resize new message" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .width(36.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)),
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "New message",
+                        modifier = Modifier
+                            .weight(1f)
+                            .dragToResize(spanPx, fraction)
+                            .padding(start = 16.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    IconButton(onClick = vm::pop) { Icon(Icons.Filled.Close, "Close") }
+                }
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                ) {
+                    OutlinedTextField(
+                        value = entry,
+                        onValueChange = {
+                            entry = it
+                            vm.recipientQuery.value = it
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).focusRequester(toFocus),
+                        label = { Text("To") },
+                        singleLine = true,
+                        supportingText = {
+                            if (recipients.isNotEmpty()) Text(recipients.joinToString())
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            val added = splitRecipients(entry)
+                            if (added.isNotEmpty()) {
+                                recipients = (recipients + added).distinct()
+                                entry = ""
+                                vm.recipientQuery.value = ""
+                            }
+                        }),
+                    )
+                    if (entry.isNotBlank()) {
+                        suggestions.forEach { hit ->
+                            TextButton(onClick = {
+                                recipients = (recipients + hit.number).distinct()
+                                entry = ""
+                                vm.recipientQuery.value = ""
+                            }, modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.fillMaxWidth()) {
+                                    Text(hit.name.ifBlank { hit.number }, fontWeight = FontWeight.Medium)
+                                    if (hit.name.isNotBlank()) Text(hit.number, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                    if (recipients.size > 1) {
+                        Text(
+                            "More than one person sends as a picture message, so mobile data has to be on.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                    recipients.forEach { number ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(number, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { recipients = recipients - number }) { Icon(Icons.Filled.Close, "Remove") }
+                        }
+                    }
+                }
                 ScheduledStrip(
                     items = scheduled,
                     editingId = editingId,
@@ -806,58 +1080,6 @@ fun ComposeScreen(vm: MessagesViewModel, initialAddresses: List<String>, initial
                     scheduleEnabled = text.isNotBlank() && attachment == null && (recipients.isNotEmpty() || entry.isNotBlank()),
                     onError = vm::note,
                 )
-            }
-        },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
-            OutlinedTextField(
-                value = entry,
-                onValueChange = {
-                    entry = it
-                    vm.recipientQuery.value = it
-                },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).focusRequester(toFocus),
-                label = { Text("To") },
-                singleLine = true,
-                supportingText = {
-                    if (recipients.isNotEmpty()) Text(recipients.joinToString())
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = {
-                    val added = splitRecipients(entry)
-                    if (added.isNotEmpty()) {
-                        recipients = (recipients + added).distinct()
-                        entry = ""
-                        vm.recipientQuery.value = ""
-                    }
-                }),
-            )
-            if (entry.isNotBlank()) {
-                suggestions.forEach { hit ->
-                    TextButton(onClick = {
-                        recipients = (recipients + hit.number).distinct()
-                        entry = ""
-                        vm.recipientQuery.value = ""
-                    }, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.fillMaxWidth()) {
-                            Text(hit.name.ifBlank { hit.number }, fontWeight = FontWeight.Medium)
-                            if (hit.name.isNotBlank()) Text(hit.number, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
-            if (recipients.size > 1) {
-                Text(
-                    "More than one person sends as a picture message, so mobile data has to be on.",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-            recipients.forEach { number ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(number, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { recipients = recipients - number }) { Icon(Icons.Filled.Close, "Remove") }
-                }
             }
         }
     }
@@ -972,6 +1194,8 @@ private fun Composer(
     var plus by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf(ComposerPanel.None) }
     var emojiCategory by remember { mutableIntStateOf(0) }
+    var emojiQuery by remember { mutableStateOf("") }
+    val panelHeight = remember { mutableStateOf(COMPOSER_PANEL_START_DP.dp) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
     var shotRequest by remember { mutableIntStateOf(0) }
     var awaitCamera by remember { mutableStateOf(false) }
@@ -979,10 +1203,28 @@ private fun Composer(
     LaunchedEffect(text) {
         if (field.text != text) field = TextFieldValue(text, TextRange(text.length))
     }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) {
-            runCatching { onAttachment(copyAttachment(uri)) }
-                .onFailure { onError(it.message ?: "Could not attach that file") }
+    val photos = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { copyAttachment(uri) } }
+            result.onSuccess { attachNow.value(it) }
+                .onFailure { reportError.value(it.message ?: "Could not attach that picture") }
+        }
+    }
+    val photoFallback = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { copyAttachment(uri) } }
+            result.onSuccess { attachNow.value(it) }
+                .onFailure { reportError.value(it.message ?: "Could not attach that picture") }
+        }
+    }
+    fun openPhotos() {
+        val request = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+        if (runCatching { photos.launch(request) }.isFailure) {
+            if (runCatching { photoFallback.launch("image/*") }.isFailure) {
+                onError("No photo picker is available")
+            }
         }
     }
     val videos = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -1066,7 +1308,11 @@ private fun Composer(
         }
     }
     val keyboard = LocalSoftwareKeyboardController.current
-    Surface(tonalElevation = 3.dp) {
+    Surface(
+        color = MaterialTheme.colorScheme.mailCanvas(),
+        contentColor = MaterialTheme.colorScheme.mailInk(),
+        tonalElevation = 0.dp,
+    ) {
         Column(Modifier.fillMaxWidth().padding(8.dp)) {
             if (sims.size > 1 && subId != null) {
                 Row(
@@ -1129,16 +1375,43 @@ private fun Composer(
                 }
             }
             if (panel != ComposerPanel.None) {
+                val screenDp = LocalConfiguration.current.screenHeightDp.toFloat()
+                val maxDp = (screenDp * COMPOSER_PANEL_MAX_FRACTION).coerceAtLeast(COMPOSER_PANEL_MIN_DP)
+                val minDp = COMPOSER_PANEL_MIN_DP.coerceAtMost(maxDp)
+                val shown = panelHeight.value.coerceIn(minDp.dp, maxDp.dp)
+                val density = LocalDensity.current.density
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shadowElevation = 6.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                        .height(shown),
                 ) {
-                    Column {
+                    Column(Modifier.fillMaxSize()) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .dragComposerPanel(density, minDp, maxDp, panelHeight)
+                                .padding(top = 10.dp, bottom = 4.dp)
+                                .semantics { contentDescription = "Drag to resize" },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(36.dp, 4.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)),
+                            )
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 if (panel == ComposerPanel.Emoji) "Emoji" else "GIFs",
-                                modifier = Modifier.weight(1f).padding(start = 16.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .dragComposerPanel(density, minDp, maxDp, panelHeight)
+                                    .padding(start = 16.dp),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -1146,39 +1419,65 @@ private fun Composer(
                                 Icon(Icons.Filled.Close, if (panel == ComposerPanel.Emoji) "Close emoji" else "Close GIFs")
                             }
                         }
-                        if (panel == ComposerPanel.Emoji) {
-                            Row(Modifier.horizontalScroll(rememberScrollState())) {
-                                EmojiCatalog.forEachIndexed { index, category ->
-                                    TextButton(onClick = { emojiCategory = index }) {
-                                        Text(if (index == emojiCategory) "● ${category.name}" else category.name)
+                        Box(Modifier.fillMaxWidth().weight(1f)) {
+                            if (panel == ComposerPanel.Emoji) {
+                                Column(Modifier.fillMaxSize()) {
+                                    OutlinedTextField(
+                                        value = emojiQuery,
+                                        onValueChange = { emojiQuery = it },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp)
+                                            .semantics { contentDescription = "Search emoji" },
+                                        placeholder = { Text("Search emoji") },
+                                        singleLine = true,
+                                    )
+                                    if (emojiQuery.isBlank()) {
+                                        Row(Modifier.horizontalScroll(rememberScrollState())) {
+                                            EmojiCatalog.forEachIndexed { index, category ->
+                                                TextButton(onClick = { emojiCategory = index }) {
+                                                    Text(if (index == emojiCategory) "● ${category.name}" else category.name)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    val results = emojiResults(emojiQuery, emojiCategory)
+                                    if (results.isEmpty()) {
+                                        Text(
+                                            "No emoji found",
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    } else {
+                                        LazyVerticalGrid(
+                                            columns = GridCells.Adaptive(44.dp),
+                                            modifier = Modifier.fillMaxWidth().weight(1f),
+                                        ) {
+                                            items(results) { glyph ->
+                                                TextButton(
+                                                    onClick = { insertAtCursor(glyph) },
+                                                    contentPadding = PaddingValues(0.dp),
+                                                ) {
+                                                    Text(glyph, style = MaterialTheme.typography.titleLarge)
+                                                }
+                                            }
+                                        }
                                     }
                                 }
+                            } else {
+                                GifPicker(
+                                    hasKey = hasGifKey,
+                                    searchGifs = searchGifs,
+                                    attachGif = attachGif,
+                                    onAttached = { path ->
+                                        onAttachment(path)
+                                        panel = ComposerPanel.None
+                                    },
+                                    onError = onError,
+                                    onOpenSettings = onOpenSettings,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
                             }
-                            LazyVerticalGrid(
-                                columns = GridCells.Adaptive(44.dp),
-                                modifier = Modifier.fillMaxWidth().height(180.dp),
-                            ) {
-                                items(EmojiCatalog[emojiCategory].glyphs) { glyph ->
-                                    TextButton(
-                                        onClick = { insertAtCursor(glyph) },
-                                        contentPadding = PaddingValues(0.dp),
-                                    ) {
-                                        Text(glyph, style = MaterialTheme.typography.titleLarge)
-                                    }
-                                }
-                            }
-                        } else {
-                            GifPicker(
-                                hasKey = hasGifKey,
-                                searchGifs = searchGifs,
-                                attachGif = attachGif,
-                                onAttached = { path ->
-                                    onAttachment(path)
-                                    panel = ComposerPanel.None
-                                },
-                                onError = onError,
-                                onOpenSettings = onOpenSettings,
-                            )
                         }
                         Row(Modifier.padding(horizontal = 8.dp)) {
                             TextButton(onClick = { panel = ComposerPanel.Emoji }) {
@@ -1215,7 +1514,7 @@ private fun Composer(
                             text = { Text("Gallery") },
                             onClick = {
                                 plus = false
-                                picker.launch("*/*")
+                                openPhotos()
                             },
                             leadingIcon = { Icon(Icons.Filled.Image, null) },
                         )
@@ -1302,6 +1601,36 @@ private fun Composer(
     }
 }
 
+@Composable
+private fun TapbackRow(
+    marks: List<BubbleReaction>,
+    onPick: (TapbackSymbol, Boolean) -> Unit,
+) {
+    val mine = marks.filter { "You" in it.names }.map { it.symbol }.toSet()
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        val gap = 6.dp
+        val each = ((maxWidth - gap * (tapbackSymbols.size - 1)) / tapbackSymbols.size).coerceAtMost(48.dp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            tapbackSymbols.forEach { symbol ->
+                val on = symbol.symbol in mine
+                val description = if (on) "Remove ${symbol.label}" else symbol.label
+                Surface(
+                    shape = CircleShape,
+                    color = if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier
+                        .size(each)
+                        .semantics { contentDescription = description }
+                        .clickable { onPick(symbol, on) },
+                ) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(symbol.symbol, style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+            }
+        }
+    }
+}
+
 private data class ThreadTail(val count: Int, val lastSize: Int, val gap: Int, val scrolling: Boolean)
 
 private fun LazyListState.tailGap(): Int {
@@ -1328,6 +1657,7 @@ private suspend fun LazyListState.revealTail() {
 @Composable
 private fun MessageBubble(
     message: ChatMessage,
+    reactions: List<app.messages.sms.BubbleReaction>,
     group: Boolean,
     indicator: String,
     caption: String,
@@ -1347,6 +1677,7 @@ private fun MessageBubble(
             Text(message.senderName, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
         val media = message.attachments.any { it.mime.startsWith("image/") || it.mime.startsWith("video/") }
+        Box {
         Surface(
             color = if (message.incoming) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
             shape = RoundedCornerShape(
@@ -1432,6 +1763,27 @@ private fun MessageBubble(
                 }
             }
         }
+            if (reactions.isNotEmpty()) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 2.dp,
+                    modifier = Modifier
+                        .align(if (message.incoming) Alignment.BottomEnd else Alignment.BottomStart)
+                        .offset(y = 10.dp)
+                        .semantics { contentDescription = reactionDescription(reactions) },
+                ) {
+                    Text(
+                        reactions.joinToString("  ") { mark ->
+                            if (mark.names.size > 1) "${mark.symbol} ${mark.names.size}" else mark.symbol
+                        },
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
+        }
+        if (reactions.isNotEmpty()) Spacer(Modifier.height(12.dp))
         if (indicator.isNotBlank()) {
             Text(
                 indicator,
@@ -1636,6 +1988,41 @@ private fun StillFile(path: String, video: Boolean, modifier: Modifier, descript
 
 private enum class ComposerPanel { None, Emoji, Gifs }
 
+internal const val COMPOSER_PANEL_MIN_DP = 280f
+internal const val COMPOSER_PANEL_START_DP = 360f
+internal const val COMPOSER_PANEL_MAX_FRACTION = 0.62f
+
+/** Finger moving down (positive [dragPx]) makes the card shorter. [density] is pixels per dp. */
+internal fun composerPanelHeightDp(
+    currentDp: Float,
+    dragPx: Float,
+    density: Float,
+    minDp: Float,
+    maxDp: Float,
+): Float {
+    val floor = minOf(minDp, maxDp)
+    val cap = maxOf(minDp, maxDp)
+    if (density <= 0f) return currentDp.coerceIn(floor, cap)
+    return (currentDp - dragPx / density).coerceIn(floor, cap)
+}
+
+private fun Modifier.dragComposerPanel(
+    density: Float,
+    minDp: Float,
+    maxDp: Float,
+    height: MutableState<Dp>,
+): Modifier = pointerInput(density, minDp, maxDp) {
+    detectVerticalDragGestures { _, dragAmount ->
+        height.value = composerPanelHeightDp(
+            height.value.value,
+            dragAmount,
+            density,
+            minDp,
+            maxDp,
+        ).dp
+    }
+}
+
 private fun previewFrame(path: String, video: Boolean): androidx.compose.ui.graphics.ImageBitmap? {
     if (!video) return BitmapFactory.decodeFile(path)?.asImageBitmap()
     val retriever = MediaMetadataRetriever()
@@ -1692,7 +2079,9 @@ private fun rememberContactShare(
 @Composable
 private fun ScheduleDialog(onDismiss: () -> Unit, onConfirm: (Long) -> Unit) {
     var dateMillis by remember { mutableStateOf<Long?>(null) }
-    val dateState = rememberDatePickerState()
+    val seed = remember { schedulePickerSeed() }
+    val dateState = rememberDatePickerState(initialSelectedDateMillis = seed.dateUtcMillis)
+    val timeState = rememberTimePickerState(initialHour = seed.hour, initialMinute = seed.minute)
     if (dateMillis == null) {
         DatePickerDialog(
             onDismissRequest = onDismiss,
@@ -1702,7 +2091,6 @@ private fun ScheduleDialog(onDismiss: () -> Unit, onConfirm: (Long) -> Unit) {
             dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
         ) { DatePicker(dateState) }
     } else {
-        val timeState = rememberTimePickerState()
         AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text("Time") },

@@ -7,7 +7,13 @@ package app.messages.sms
  */
 object MmsRetrieveParser {
     data class Part(val mime: String, val name: String, val bytes: ByteArray)
-    data class Retrieved(val from: String, val dateSeconds: Long, val parts: List<Part>)
+    data class Retrieved(
+        val from: String,
+        val dateSeconds: Long,
+        val parts: List<Part>,
+        val to: List<String> = emptyList(),
+        val cc: List<String> = emptyList(),
+    )
 
     fun parse(pdu: ByteArray?): Retrieved? {
         if (pdu == null || pdu.size < 4) return null
@@ -23,6 +29,8 @@ object MmsRetrieveParser {
         var type = -1
         var from = ""
         var date = 0L
+        val to = ArrayList<String>()
+        val cc = ArrayList<String>()
         val limit = pdu.size
         while (i < limit) {
             val field = u8(pdu, i)
@@ -45,11 +53,19 @@ object MmsRetrieveParser {
                     from = parsed.value
                     i = parsed.next
                 }
+                0x97, 0x82 -> {
+                    val parsed = readEncoded(pdu, i, limit)
+                    val address = cleanAddress(parsed.value)
+                    if (address.isNotBlank() && !address.equals("insert-address-token", true)) {
+                        if (field == 0x97) to += address else cc += address
+                    }
+                    i = parsed.next
+                }
                 0x84 -> {
                     if (type != 0x84) return null
                     i = skipContentType(pdu, i, limit)
                     val parts = readParts(pdu, i, limit)
-                    return Retrieved(cleanAddress(from), date, parts)
+                    return Retrieved(cleanAddress(from), date, parts, to, cc)
                 }
                 else -> i = skipValue(pdu, i, limit)
             }

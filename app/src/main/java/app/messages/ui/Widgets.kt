@@ -1,5 +1,6 @@
 package app.messages.ui
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -19,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -27,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.net.Uri
 import kotlin.math.abs
+import kotlin.math.max
 
 private val AvatarColors = listOf(
     Color(0xFF1F4B6E),
@@ -43,14 +46,15 @@ fun avatarColor(title: String): Color = AvatarColors[abs(title.hashCode()) % Ava
 @Composable
 fun Avatar(title: String, photoUri: String?, size: Dp = 44.dp) {
     val context = LocalContext.current
-    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, photoUri) {
+    val targetPx = with(LocalDensity.current) { size.roundToPx() }.coerceAtLeast(1)
+    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, photoUri, targetPx) {
         value = if (photoUri.isNullOrBlank()) {
             null
         } else {
             withContext(Dispatchers.IO) {
                 try {
                     context.contentResolver.openInputStream(Uri.parse(photoUri))?.use { stream ->
-                        BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                        decodeAvatar(stream.readBytes(), targetPx * 2)
                     }
                 } catch (_: Exception) {
                     null
@@ -77,4 +81,20 @@ fun Avatar(title: String, photoUri: String?, size: Dp = 44.dp) {
             )
         }
     }
+}
+
+private fun decodeAvatar(bytes: ByteArray, targetPx: Int): androidx.compose.ui.graphics.ImageBitmap? {
+    if (bytes.isEmpty()) return null
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    val edge = max(bounds.outWidth, bounds.outHeight)
+    val goal = targetPx.coerceAtLeast(48)
+    while (sample < 32 && edge / sample > goal * 2) sample *= 2
+    val opts = BitmapFactory.Options().apply {
+        inSampleSize = sample
+        inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.asImageBitmap()
 }

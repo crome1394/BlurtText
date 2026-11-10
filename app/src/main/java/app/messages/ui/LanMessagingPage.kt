@@ -55,10 +55,11 @@ fun LanMessagingPage(active: Boolean) {
         onRecyclePairing = viewModel::recyclePairing,
         onApprove = viewModel::approvePairing,
         onDeny = viewModel::denyPairing,
+        onRename = viewModel::rename,
         onRevoke = viewModel::revoke,
         embedded = true,
         active = active,
-        appLabel = "lMessages",
+        appLabel = "BlurtText",
     )
 }
 

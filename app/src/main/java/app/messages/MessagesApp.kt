@@ -3,7 +3,10 @@ package app.messages
 import android.app.Application
 import android.content.Context
 import app.lantext.LanTextApp
+import app.lantext.PhoneDesktop
 import app.lantext.data.PhoneWeb
+import app.lantext.sms.DesktopSchedule
+import app.lantext.sms.DesktopTrash
 import app.messages.data.LocalStore
 import app.messages.data.MessagingRepository
 import app.messages.data.Persisted
@@ -17,8 +20,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class MessagesApp : LanTextApp() {
+    init {
+        productLabel = "BlurtText"
+    }
+
     lateinit var local: LocalStore
         private set
     lateinit var messaging: MessagingRepository
@@ -36,6 +44,7 @@ class MessagesApp : LanTextApp() {
         super.onCreate()
         local = LocalStore(this)
         messaging = MessagingRepository(this, local)
+        phoneDesktop = phoneDesktopBridge()
         MessageNotifier.ensureChannel(this)
         messaging.start()
         scope.launch {
@@ -65,6 +74,7 @@ class MessagesApp : LanTextApp() {
         scope.launch(Dispatchers.IO) {
             ScheduleController.rearmAll(this@MessagesApp)
             MmsInbound.retryPending(this@MessagesApp, messaging)
+            messaging.repairGroupThreads()
         }
     }
 
@@ -90,6 +100,8 @@ class MessagesApp : LanTextApp() {
             ribbonRead = shown("read"),
             ribbonDelete = shown("delete"),
             ribbonPin = shown("pin"),
+            launcherIcon = LauncherIcons.canonical(persisted.launcherIcon),
+            inboxGroup = persisted.inboxGroup,
         )
         val current = settings.current()
         if (current.gifApiKey != persisted.gifApiKey) settings.setGifApiKey(persisted.gifApiKey)
@@ -99,6 +111,45 @@ class MessagesApp : LanTextApp() {
             settings.setAppearance(palette, mode)
         }
         phonePushReady = true
+    }
+
+    private fun phoneDesktopBridge(): PhoneDesktop = object : PhoneDesktop {
+        override fun trashed(): List<DesktopTrash> =
+            local.snapshot.trash.map { DesktopTrash(it.threadId.toString(), it.trashedAt) }
+
+        override fun scheduled(): List<DesktopSchedule> =
+            local.snapshot.scheduled.map { item ->
+                DesktopSchedule(
+                    id = item.id,
+                    address = item.addresses.joinToString(),
+                    sendAt = item.sendAt,
+                    body = item.body,
+                )
+            }
+
+        override fun restoreTrash(threadId: String) {
+            val id = threadId.toLongOrNull() ?: return
+            runBlocking {
+                local.update { state -> state.copy(trash = state.trash.filter { it.threadId != id }) }
+            }
+            messaging.ping()
+        }
+
+        override fun deleteTrash(threadId: String) {
+            val id = threadId.toLongOrNull() ?: return
+            messaging.deleteThreads(setOf(id))
+            runBlocking {
+                local.update { state -> state.copy(trash = state.trash.filter { it.threadId != id }) }
+            }
+        }
+
+        override fun cancelScheduled(id: String) {
+            if (id.isBlank()) return
+            runBlocking {
+                local.update { state -> state.copy(scheduled = state.scheduled.filter { it.id != id }) }
+            }
+            ScheduleController.cancel(this@MessagesApp, id)
+        }
     }
 
     private fun webMode(theme: String): String = when (theme) {

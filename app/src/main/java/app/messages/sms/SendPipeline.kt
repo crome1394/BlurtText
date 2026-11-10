@@ -47,7 +47,7 @@ object SendPipeline {
         deliveryReports: Boolean,
     ): Long = withContext(Dispatchers.IO) {
         if (!SmsRole.isDefault(context)) {
-            throw IllegalStateException("Set lMessages as the default SMS app to send.")
+            throw IllegalStateException("Set BlurtText as the default SMS app to send.")
         }
         val dest = addresses.map { it.trim() }.filter { it.isNotEmpty() }
         if (dest.isEmpty()) throw IllegalStateException("Add a recipient.")
@@ -60,11 +60,11 @@ object SendPipeline {
                 sendSms(context, dest.first(), text, subId, deliveryReports)
             }
         } catch (t: IllegalStateException) {
-            throw IllegalStateException(t.message?.replace("Fossify Messages", "lMessages")?.replace("Fossify", "lMessages") ?: "Could not send", t)
+            throw IllegalStateException(t.message?.replace("Fossify Messages", "BlurtText")?.replace("Fossify", "BlurtText") ?: "Could not send", t)
         } catch (t: Throwable) {
             Log.e(TAG, "send failed", t)
             throw IllegalStateException(
-                (t.message ?: "Could not send").replace("Fossify Messages", "lMessages").replace("Fossify", "lMessages"),
+                (t.message ?: "Could not send").replace("Fossify Messages", "BlurtText").replace("Fossify", "BlurtText"),
                 t,
             )
         }
@@ -91,7 +91,7 @@ object SendPipeline {
             if (id != SubscriptionManager.INVALID_SUBSCRIPTION_ID) put(Telephony.Sms.SUBSCRIPTION_ID, id)
         }
         val uri = context.contentResolver.insert(Telephony.Sms.CONTENT_URI, values)
-            ?: throw IllegalStateException("Set lMessages as the default SMS app to send.")
+            ?: throw IllegalStateException("Set BlurtText as the default SMS app to send.")
         val manager = manager(context, subId)
         val parts = manager.divideMessage(body)
         PartTracker.begin(uri.toString(), parts.size)
