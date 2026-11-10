@@ -8,7 +8,7 @@ The launcher name, notifications, computer page, and browser inbox use BlurtText
 
 `:app` is the phone UI, the default-SMS role, sending, and receiving.
 
-`:lantext` is the computer inbox inside BlurtText. The Gradle build reads `../lantext/app/src/main` at compile time and does not copy that tree into this git repo. `MessagesApp` extends `LanTextApp`, so the web server, GIF search, and MMS composer live in the same process. The screens and the browser call that inbox BlurtText.
+`:lantext` is the computer inbox inside BlurtText. The Gradle build reads `external/lantext` (the pinned LanText submodule), or `../lantext` when that checkout is already present. `MessagesApp` extends `LanTextApp`, so the web server, GIF search, and MMS composer live in the same process. The screens and the browser call that inbox BlurtText.
 
 ## Screens
 

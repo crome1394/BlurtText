@@ -37,10 +37,11 @@ A few pieces need a newer release, and older phones keep the rest:
 
 Java 17 and Android SDK platform 36.
 
-The computer inbox is part of BlurtText. Its sources are read from `../lantext/app/src/main`, checked out next to this project. They are not copied into this git repo.
+The computer inbox is the LanText project. A clean checkout uses the `external/lantext` submodule. If LanText is already checked out at `../lantext`, the build uses that tree instead.
 
 ```bash
 export ANDROID_HOME=$HOME/Android/Sdk
+git submodule update --init
 ./gradlew :app:assembleDebug
 ```
 

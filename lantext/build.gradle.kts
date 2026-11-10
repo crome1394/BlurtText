@@ -11,7 +11,12 @@ plugins {
 // Compiles the LanText sources in-place so this app and the LanText project stay one codebase.
 // LanTextApp is final in that project. A build-time copy marks it open so MessagesApp can
 // subclass it and keep LanTextApp.instance, the gateway, and the computer UI working.
-val lantextMain = rootProject.projectDir.resolve("../lantext/app/src/main")
+// A sibling checkout wins on this machine. A clean checkout uses the pinned submodule.
+val lantextMain = sequenceOf(
+    rootProject.projectDir.resolve("../lantext/app/src/main"),
+    rootProject.projectDir.resolve("external/lantext/app/src/main"),
+).firstOrNull { it.resolve("java").isDirectory }
+    ?: error("LanText sources are missing. Run: git submodule update --init")
 val lantextJava = layout.buildDirectory.dir("generated/lantext-src")
 val syncLantextSources = tasks.register<Sync>("syncLantextSources") {
     from(lantextMain.resolve("java"))
