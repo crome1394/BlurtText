@@ -78,6 +78,7 @@ private fun neededPermissions(): List<String> {
     if (Build.VERSION.SDK_INT >= 37) {
         needed += WifiGate.PERMISSION_ACCESS_LOCAL_NETWORK
     }
+    needed += Manifest.permission.ACCESS_COARSE_LOCATION
     needed += Manifest.permission.ACCESS_FINE_LOCATION
     return needed
 }

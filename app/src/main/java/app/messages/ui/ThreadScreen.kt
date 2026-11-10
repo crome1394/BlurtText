@@ -260,8 +260,9 @@ fun ThreadScreen(vm: MessagesViewModel, threadId: Long) {
             }
         }
     }
-    val fineLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startLocation() else vm.note("Location permission is needed to send where you are")
+    val fineLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted[Manifest.permission.ACCESS_FINE_LOCATION] == true) startLocation()
+        else vm.note("Location permission is needed to send where you are")
     }
 
     val shareContact = rememberContactShare(load = vm::contactCard, onError = vm::note) { card ->
@@ -377,7 +378,7 @@ fun ThreadScreen(vm: MessagesViewModel, threadId: Long) {
                                     context,
                                     Manifest.permission.ACCESS_FINE_LOCATION,
                                 ) == PackageManager.PERMISSION_GRANTED
-                                if (granted) startLocation() else fineLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                                if (granted) startLocation() else fineLocation.launch(locationPermissions())
                             }
                         }, leadingIcon = { Icon(Icons.Filled.LocationOn, null) })
                         DropdownMenuItem(text = { Text("Send contact") }, onClick = {
@@ -519,7 +520,7 @@ fun ThreadScreen(vm: MessagesViewModel, threadId: Long) {
                                 context,
                                 Manifest.permission.ACCESS_FINE_LOCATION,
                             ) == PackageManager.PERMISSION_GRANTED
-                            if (granted) startLocation() else fineLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                            if (granted) startLocation() else fineLocation.launch(locationPermissions())
                         }
                     },
                     onContact = shareContact,
@@ -879,8 +880,9 @@ fun ComposeScreen(vm: MessagesViewModel, initialAddresses: List<String>, initial
             }
         }
     }
-    val fineLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startLocation() else vm.note("Location permission is needed to send where you are")
+    val fineLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted[Manifest.permission.ACCESS_FINE_LOCATION] == true) startLocation()
+        else vm.note("Location permission is needed to send where you are")
     }
     DisposableEffect(Unit) {
         onDispose {
@@ -1064,7 +1066,7 @@ fun ComposeScreen(vm: MessagesViewModel, initialAddresses: List<String>, initial
                             context,
                             Manifest.permission.ACCESS_FINE_LOCATION,
                         ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) startLocation() else fineLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        if (granted) startLocation() else fineLocation.launch(locationPermissions())
                     },
                     onContact = shareContact,
                     onSchedule = {
@@ -1985,6 +1987,11 @@ private fun StillFile(path: String, video: Boolean, modifier: Modifier, descript
         }
     }
 }
+
+private fun locationPermissions(): Array<String> = arrayOf(
+    Manifest.permission.ACCESS_COARSE_LOCATION,
+    Manifest.permission.ACCESS_FINE_LOCATION,
+)
 
 private enum class ComposerPanel { None, Emoji, Gifs }
 
