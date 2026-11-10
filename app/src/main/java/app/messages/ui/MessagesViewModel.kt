@@ -49,7 +49,7 @@ import java.io.File
 import java.util.ArrayDeque
 import java.util.UUID
 
-internal class BackupExport(val file: File, val generation: Int)
+class BackupExport(val file: File, val generation: Int)
 
 sealed interface Screen {
     data object Inbox : Screen
