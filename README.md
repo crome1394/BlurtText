@@ -1,70 +1,70 @@
+<div align="center">
+
+<img src="fastlane/metadata/android/en-US/images/icon.png" width="96" alt="BlurtText icon">
+
 # BlurtText
 
-Android SMS and MMS app. It is the phone's default texting app, and a computer on the same Wi-Fi can read and send through it. No account. Nothing is uploaded.
+An SMS and MMS app for Android with a private computer inbox on your own Wi-Fi.
 
-Open it if you want one messenger for texts, pictures, GIFs, and a browser inbox, without a carrier app in the middle.
+[![Release](https://img.shields.io/github/v/release/crome1394/blurttext-android?label=release&color=75fbfd)](https://github.com/crome1394/blurttext-android/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/crome1394/blurttext-android/total?color=9ece6a)](https://github.com/crome1394/blurttext-android/releases)
+[![F-Droid](https://img.shields.io/badge/F--Droid-coming%20soon-1976d2?logo=fdroid&logoColor=white)](F-DROID.md)
+[![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3ddc84?logo=android&logoColor=white)](docs/compatibility.md)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.1-7f52ff?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285f4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/compose)
+[![License: Apache 2.0](https://img.shields.io/github/license/crome1394/blurttext-android?color=bb9af7)](LICENSE)
 
-Source: [github.com/crome1394/BlurtText](https://github.com/crome1394/BlurtText). Sideload [blurttext-0.1.4.apk](https://github.com/crome1394/BlurtText/releases/download/v0.1.4/blurttext-0.1.4.apk) (signed release, version 0.1.4).
+</div>
 
-- SMS, multipart SMS, and MMS (pictures, GIFs, video, voice) through Android's telephony provider
-- Swipe a conversation to mark it read or unread, or to delete it. A read thread offers Mark as unread. An unread thread offers Mark as read. A delete can be undone from Trash.
-- Several color palettes, light and dark, and a text-size control
-- Multi-SIM send, scheduled texts, block list, and a keyword filter
-- Computer inbox at `https://blurttext.lan:8743` on your LAN, including GIF search when a KLIPY key is saved on the phone. The numeric address on the phone still works.
-- Apache-2.0
+Set BlurtText as your default texting app, then open `https://blurttext.lan:8743` on a computer on the same Wi-Fi to read and reply from a real keyboard. No account, no cloud, and message bodies never leave your network.
 
-## Sideload
+<p align="center">
+  <img src="docs/screenshots/inbox.webp" width="200" alt="Inbox">
+  <img src="docs/screenshots/thread.webp" width="200" alt="Conversation">
+  <img src="docs/screenshots/computer.webp" width="200" alt="Computer inbox pairing">
+</p>
 
-[blurttext-0.1.4.apk](https://github.com/crome1394/BlurtText/releases/download/v0.1.4/blurttext-0.1.4.apk). Android 8.0 or newer. The install id is `app.crome1394.blurttext`. It updates a phone that already has this release build. A debug build of BlurtText has a different signature, so remove that copy before installing this one. Set BlurtText as the default SMS app after installing.
+## Download
 
-## What you need
+Get `blurttext-<version>.apk` from **[Releases](https://github.com/crome1394/blurttext-android/releases/latest)**, install it, and set BlurtText as the default SMS app. Android 8.0 or newer on a phone with telephony. An F-Droid listing is [in preparation](F-DROID.md).
 
-- Android 8.0 or newer (API 26). The install id is `app.crome1394.blurttext`. Kotlin sources stay in the `app.messages` package.
-- A phone with telephony. Wi-Fi-only tablets are not a target.
-- This app set as the default SMS app, or it cannot write the system message store.
-- No carrier SDK. Sending uses `SmsManager` and the MMSC, size limits, and proxy from the phone's own carrier configuration. On Android 8, where that configuration API is missing, MMS falls back to a 300 KB / 1024 px budget.
+## Features
 
-Layouts are in density-independent pixels. Rows, settings, and the action ribbon scroll instead of assuming a Pixel-sized screen. A narrow phone keeps the footer icons and shortens the unread label. This has been checked on a Pixel 9, not on a separate small device.
+| | |
+|---|---|
+| **Messaging** | SMS, long SMS, and MMS (pictures, GIFs, video, voice) through Android's own message store; no carrier SDK |
+| **Groups** | A group stays in one thread, and a reply goes to everyone |
+| **Inbox** | Swipe to delete or mark read/unread, with undo from Trash; pin, archive, search, filter |
+| **Sending** | Multi-SIM, scheduled texts, attach a photo or your location |
+| **Blocking** | Block list and keyword filter |
+| **Look** | Nine color palettes, light and dark, launcher icon colors, text size |
+| **Computer inbox** | Browser inbox on allowed Wi-Fi networks, paired by PIN or QR; stops when the phone leaves |
+| **GIFs** | Optional KLIPY search when you save your own key |
 
-A few pieces need a newer release, and older phones keep the rest:
+## Screenshots
 
-| Piece | Needs |
-| --- | --- |
-| Animated GIFs in a thread | Android 9. Android 8 shows a still frame. |
-| In-app default-SMS prompt | Android 10 uses the system role. Android 8 and 9 use the older default-SMS screen. |
-| Dynamic wallpaper color | Android 12 |
-| System photo picker | Android 13. Older versions use the document picker. |
-| Exact-alarm permission screen | Android 12 |
-| Local-network permission for the computer inbox | Android 16 |
+| New message | Appearance | Light theme |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/compose.webp" width="200" alt="New message card with contact suggestion"> | <img src="docs/screenshots/appearance.webp" width="200" alt="Appearance settings with color palettes"> | <img src="docs/screenshots/light.webp" width="200" alt="Inbox in the light Fern palette"> |
 
-## Build
+Screenshots use made-up contacts and messages on the Android emulator.
 
-Java 17 and Android SDK platform 36.
+## Quick start
 
-The computer inbox is the LanText project, pinned in the `external/lantext` submodule. A checkout at `../lantext` is used only when you pass `-Plantext.local=true`.
+1. Install the APK and accept the default-SMS prompt.
+2. **Settings → BlurtText**: turn on **Web access** and allow your home Wi-Fi.
+3. Open the address shown on the phone in a browser, accept the certificate once, and enter the PIN.
 
-```bash
-export ANDROID_HOME=$HOME/Android/Sdk
-git submodule update --init
-./gradlew :app:assembleDebug
-```
+## Documentation
 
-The debug APK is `app/build/outputs/apk/debug/app-debug.apk`.
-
-## Default SMS app
-
-```bash
-adb shell cmd role add-role-holder android.app.role.SMS app.crome1394.blurttext
-```
-
-Give the role back to Fossify Messages:
-
-```bash
-adb shell cmd role add-role-holder android.app.role.SMS org.fossify.messages
-```
-
-On Android 8 and 9, set the default from the system SMS-app screen. `cmd role` is for Android 10 and newer.
+| Doc | What's in it |
+|---|---|
+| [Compatibility](docs/compatibility.md) | Android versions, per-version features, permissions |
+| [Building and releasing](docs/building.md) | Build, default-SMS commands, signed release steps |
+| [Architecture](ARCHITECTURE.md) | Modules, screens, sending and receiving, group threads |
+| [F-Droid](F-DROID.md) | Reproducible-build setup and submission checklist |
+| [Changelog](CHANGELOG.md) | What changed in each release |
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). The computer inbox is [LanText](https://github.com/crome1394/LanText), included as a submodule.
