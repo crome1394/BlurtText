@@ -1180,13 +1180,13 @@ private fun AboutPage(query: String) {
         item {
             SettingsListItem(
                 headlineContent = { Text("GitHub") },
-                supportingContent = { Text("https://github.com/crome1394/BlurtText") },
+                supportingContent = { Text("https://github.com/crome1394/blurttext-android") },
                 leadingContent = {
                     Icon(painterResource(app.messages.R.drawable.ic_git), contentDescription = "Git")
                 },
                 modifier = Modifier.clickable {
                     context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/crome1394/BlurtText")),
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/crome1394/blurttext-android")),
                     )
                 },
             )
@@ -1204,7 +1204,7 @@ private fun AboutPage(query: String) {
                 supportingContent = { Text("Download the latest build from GitHub") },
                 modifier = Modifier.clickable {
                     context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/crome1394/BlurtText/releases/latest")),
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/crome1394/blurttext-android/releases/latest")),
                     )
                 },
             )

@@ -2,7 +2,7 @@
 
 BlurtText is the phone's default SMS and MMS app. The install id is `app.crome1394.blurttext`. Kotlin sources stay in the `app.messages` package. A computer on the same Wi-Fi can read and send through the phone. There is no account, and message bodies are not uploaded.
 
-The launcher name, notifications, computer page, and browser inbox use BlurtText. This install id is separate from an older `app.messages` install, so settings and pairing do not move across. Set this app as the default SMS app after installing it. Source: [GitHub](https://github.com/crome1394/BlurtText).
+The launcher name, notifications, computer page, and browser inbox use BlurtText. This install id is separate from an older `app.messages` install, so settings and pairing do not move across. Set this app as the default SMS app after installing it. Source: [GitHub](https://github.com/crome1394/blurttext-android).
 
 ## Modules
 
