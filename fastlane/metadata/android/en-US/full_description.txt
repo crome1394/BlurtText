@@ -20,7 +20,7 @@
 </ul>
 
 <p><b>Permissions</b></p>
-<p>Location and Nearby devices are requested only because Android hides the Wi-Fi name without them. The name is compared with your allowlist on the phone. Coordinates are never read, stored, or sent.</p>
+<p>Location and Nearby devices are needed because Android hides the Wi-Fi name without them. The name is compared with your allowlist on the phone. Location is otherwise read only when you choose to share your location in a message.</p>
 
 <p><b>Optional GIF search</b></p>
 <p>GIF search uses KLIPY when you save your own KLIPY key on the phone. Texting and the computer inbox work without it.</p>

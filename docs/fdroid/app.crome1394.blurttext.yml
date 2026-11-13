@@ -56,5 +56,6 @@ AntiFeatures:
 #   list v0.1.5 or newer only.
 # - No ads, analytics, crash reporting, Google Play Services, or non-free
 #   libraries. dependenciesInfo is disabled in app/build.gradle.kts.
-# - Location and Nearby devices are only so Android reveals the Wi-Fi name
-#   for the computer-inbox allowlist; not a tracking Anti-Feature.
+# - Location and Nearby devices are so Android reveals the Wi-Fi name for the
+#   computer-inbox allowlist, plus an opt-in "share my location" link in a
+#   message. Nothing is sent anywhere else; not a tracking Anti-Feature.
