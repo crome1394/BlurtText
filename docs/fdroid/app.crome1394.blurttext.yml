@@ -1,0 +1,60 @@
+#   metadata/app.crome1394.blurttext.yml
+# Copy this file into a fork of https://gitlab.com/fdroid/fdroiddata when
+# opening the "New app" merge request. Same layout as Point Forecast's live
+# recipe (com.crome.forecastpoint): exclusive upstream-signed reproducible
+# builds, so F-Droid ships the GitHub APK signed with our key.
+#
+# Store text and graphics come from fastlane/ in this repo; don't copy them here.
+# Before submitting, point versionName, versionCode, commit, CurrentVersion,
+# and CurrentVersionCode at the release tag (see F-DROID.md).
+# https://f-droid.org/docs/Build_Metadata_Reference/
+
+Categories:
+  - Phone & SMS
+  - Internet
+License: Apache-2.0
+AuthorName: crome1394
+SourceCode: https://github.com/crome1394/blurttext-android
+IssueTracker: https://github.com/crome1394/blurttext-android/issues
+Changelog: https://github.com/crome1394/blurttext-android/blob/main/CHANGELOG.md
+
+AutoName: BlurtText
+
+RepoType: git
+Repo: https://github.com/crome1394/blurttext-android.git
+Binaries: https://github.com/crome1394/blurttext-android/releases/download/v%v/blurttext-%v.apk
+
+Builds:
+  - versionName: 0.1.5
+    versionCode: 6
+    commit: FULL_SHA_OF_v0.1.5
+    subdir: app
+    submodules: true
+    gradle:
+      - yes
+
+AllowedAPKSigningKeys: 86553f85b064710091bbf1df7e82a9c90ebb6dba310037bcf902d21440c20ad4
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+UpdateCheckData: app/build.gradle.kts|versionCode\s*=\s*(\d+)|.|versionName\s*=\s*"([^"]+)"
+CurrentVersion: 0.1.5
+CurrentVersionCode: 6
+
+AntiFeatures:
+  NonFreeNet:
+    en-US: Optional GIF search contacts KLIPY when the user saves their own key.
+      Texts, pictures, and the computer inbox work without it.
+
+# Notes for the merge request (not part of the recipe):
+# - external/lantext is the LanText submodule (Apache-2.0, same author), so
+#   submodules: true is required.
+# - Verified locally: a clean-clone build signed with Build Tools 34 apksigner
+#   passes `apksigcopier compare` against an unsigned rebuild in another path
+#   (OpenJDK 21, Gradle 8.11.1, AGP 8.8.2). See scripts/verify-reproducible.sh.
+# - v0.1.4 and earlier are not reproducible (built from a different tree);
+#   list v0.1.5 or newer only.
+# - No ads, analytics, crash reporting, Google Play Services, or non-free
+#   libraries. dependenciesInfo is disabled in app/build.gradle.kts.
+# - Location and Nearby devices are only so Android reveals the Wi-Fi name
+#   for the computer-inbox allowlist; not a tracking Anti-Feature.
