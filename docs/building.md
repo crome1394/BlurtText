@@ -35,8 +35,8 @@ Releases are GitHub Releases with the signed APK attached. F-Droid rebuilds the 
 |---|---|
 | Tag | `v<versionName>`, e.g. `v0.1.5` |
 | Asset | `blurttext-<versionName>.apk` |
-| Keystore | `~/.config/blurttext/release.keystore`, alias `blurttext` (never change it) |
-| Password | `~/.config/blurttext/release-password.txt` |
+| Keystore | `~/.local/share/blurttext/blurttext-release.jks`, alias `blurttext` (never change it) |
+| Password | `~/.local/share/blurttext/release-password.txt` |
 | Cert SHA-256 | `86553f85b064710091bbf1df7e82a9c90ebb6dba310037bcf902d21440c20ad4` |
 | Signer | Build Tools **34** `apksigner`, v2 + v3 only |
 

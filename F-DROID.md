@@ -26,7 +26,7 @@ so they only appear for releases tagged after they were added.
 |---|---|
 | Tag | `v<versionName>`, e.g. `v0.1.5` |
 | Asset | `blurttext-<versionName>.apk` |
-| Signing key | `~/.config/blurttext/release.keystore` (never change it) |
+| Signing key | `~/.local/share/blurttext/blurttext-release.jks` (never change it) |
 | Cert SHA-256 | `86553f85b064710091bbf1df7e82a9c90ebb6dba310037bcf902d21440c20ad4` |
 | Build | Gradle, `subdir: app`, `submodules: true` (LanText); unsigned `assembleRelease` |
 

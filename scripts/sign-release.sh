@@ -16,8 +16,8 @@ out=${2:?usage: sign-release.sh <unsigned.apk> <signed.apk>}
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}
 apksigner="$sdk/build-tools/34.0.0/apksigner"
-ks=${BLURTTEXT_KEYSTORE:-$HOME/.config/blurttext/release.keystore}
-pass=${BLURTTEXT_KEYSTORE_PASS_FILE:-$HOME/.config/blurttext/release-password.txt}
+ks=${BLURTTEXT_KEYSTORE:-$HOME/.local/share/blurttext/blurttext-release.jks}
+pass=${BLURTTEXT_KEYSTORE_PASS_FILE:-$HOME/.local/share/blurttext/release-password.txt}
 
 [ -x "$apksigner" ] || { echo "missing $apksigner (install Build Tools 34.0.0)" >&2; exit 1; }
 mkdir -p "$(dirname "$out")"
