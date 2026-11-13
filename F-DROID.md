@@ -1,6 +1,6 @@
 # F-Droid
 
-Prepared, **not submitted**. The setup matches Point Forecast, which is live on F-Droid:
+Prepared, **not submitted**. The recipe points at v0.1.5. The setup matches Point Forecast, which is live on F-Droid:
 **exclusive upstream-signed reproducible builds**. F-Droid rebuilds each tagged release
 from source, checks it matches our GitHub APK apart from the signature, and then
 publishes **our** APK. Users can switch between GitHub and F-Droid updates without
@@ -38,9 +38,9 @@ build from a **clean clone of the tag**, and sign with **`scripts/sign-release.s
 | Release | Reproducible | Why |
 |---|---|---|
 | v0.1.4 and older | No | Built from a working tree that differed from the tag (`classes2.dex` and the baseline profile differ) and carry a v1 signature |
-| Current `main` | Yes | Clean-clone build signed with the release key passes `apksigcopier compare` against an independent rebuild (OpenJDK 21, Gradle 8.11.1, AGP 8.8.2) |
+| v0.1.5 | Yes | Clean-clone build signed with the release key passes `apksigcopier compare` against an independent rebuild (OpenJDK 21, Gradle 8.11.1, AGP 8.8.2) |
 
-So the first F-Droid version has to be a new release (0.1.5 or later).
+v0.1.5 is the first version to list. The published APK passes `scripts/verify-reproducible.sh`.
 
 ## Submitting
 

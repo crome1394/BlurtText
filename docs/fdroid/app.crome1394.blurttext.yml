@@ -27,7 +27,7 @@ Binaries: https://github.com/crome1394/blurttext-android/releases/download/v%v/b
 Builds:
   - versionName: 0.1.5
     versionCode: 6
-    commit: FULL_SHA_OF_v0.1.5
+    commit: a504147c0acabb9ab983f88460ab5b285354f237
     subdir: app
     submodules: true
     gradle:
