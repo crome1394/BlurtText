@@ -1,0 +1,2 @@
+- An update keeps the computer inbox certificate. If it cannot be opened, a new one is created and the browser accepts it once.
+- A shared file from the message store or the contact store is refused.

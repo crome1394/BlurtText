@@ -1,0 +1,28 @@
+<p>BlurtText is an SMS and MMS app for Android. Set it as your default texting app and a computer on the same Wi-Fi can read and send through the phone. There is no account and no cloud. Message bodies never leave your network.</p>
+
+<p><b>On the phone</b></p>
+<ul>
+<li>SMS, long SMS, and MMS: pictures, GIFs, video, and voice</li>
+<li>Group conversations that stay in one thread</li>
+<li>Swipe to delete or mark read or unread; deletes can be undone from Trash</li>
+<li>Pinned, archived, and scheduled texts</li>
+<li>Block list and keyword filter</li>
+<li>Multi-SIM sending</li>
+<li>Nine color palettes, light and dark, and a text-size control</li>
+</ul>
+
+<p><b>On your computer</b></p>
+<ul>
+<li>Open https://blurttext.lan:8743 in any browser on an allowed Wi-Fi network</li>
+<li>Pair with a PIN or QR code shown on the phone</li>
+<li>Two-pane inbox: read, reply, and paste pictures as MMS</li>
+<li>The server stops when the phone leaves the allowed network</li>
+</ul>
+
+<p><b>Permissions</b></p>
+<p>Location and Nearby devices are requested only because Android hides the Wi-Fi name without them. The name is compared with your allowlist on the phone. Coordinates are never read, stored, or sent.</p>
+
+<p><b>Optional GIF search</b></p>
+<p>GIF search uses KLIPY when you save your own KLIPY key on the phone. Texting and the computer inbox work without it.</p>
+
+<p>Requires Android 8.0 or newer and a phone with telephony.</p>
