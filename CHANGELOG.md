@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+- About and the test-APK link open the renamed github.com/crome1394/blurttext-android project.
+- A shared file that hides the message store or the contact store behind a user folder is refused.
+- Release builds are reproducible, ready for F-Droid.
+
 ## 0.1.4
 
 - An update keeps the computer inbox certificate. If that certificate cannot be opened, the inbox creates a new one and the browser accepts it once.

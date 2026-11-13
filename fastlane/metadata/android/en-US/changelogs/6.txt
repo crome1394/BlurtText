@@ -1,0 +1,3 @@
+- About opens the renamed github.com/crome1394/blurttext-android project.
+- A shared file that hides the message store or the contact store behind a user folder is refused.
+- First release built for F-Droid: the APK is reproducible from source.
